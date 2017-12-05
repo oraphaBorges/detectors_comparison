@@ -29,14 +29,13 @@ def main():
     }
 
     cases = [
-      'Same Object and Same Resolution',
-      'Same Object and Different Resolution',
-      'Different Object and Same Resolution',
-      'Different Object and Different Resolution',
-      'Same Object and Different Scale',
-      'Same Objetct and Different Angle',
-      'Image Rotated 45º',
-      'Image Rotated 90º'
+        'Same Object, Same Scale, Same Resolution, Same Rotation, Indifferent POV',
+        'Same Object, Same Scale, Different Resolution, Same Rotation, Indifferent POV',
+        'Different Object, Same Scale, Same Resolution, Same Rotation, Indifferent POV',
+        'Different Object, Same Scale, Different Resolution, Same Rotation, Indifferent POV',
+        'Same Object, Different Scale, Same Resolution, Same Rotation, Indifferent POV',
+        'Same Object, Same Scale, Indifferent Resolution, Same  Rotation, Same POV',
+        'Same Object, Same Scale, Same Resolution, 90º Rotation, Indifferent POV'
     ]
 
     for case in cases:
@@ -50,8 +49,8 @@ def main():
           values.append('{}a.jpg'.format(pair))
           values.append('{}b.jpg'.format(pair))
           cursor.execute("""
-            INSERT INTO datas (kp1,kp2,matches,time,anglesMean,anglesSD,distances1Mean,distances1SD,distaces2Mean,distances2SD,technique,situation,pathImg1,pathImg2)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO datas (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             """, tuple(values))
 
     conn.close()
@@ -72,17 +71,14 @@ def getStats(img1, img2):
 
     # Sort them in the order of their distance.
     matches = sorted(matches, key=lambda x: x.distance)
-    # matches = np.sort(a,order='distance')
 
     # Standard Deviation
     center1 = gmt.image_center(img1)
     center2 = gmt.image_center(img2)
     angles = gmt.find_kp_angles(kp1, kp2, matches, center1, center2)
-    distances1 = gmt.find_kp_distances(kp1, center1)
-    distances2 = gmt.find_kp_distances(kp2, center2)
+    scale =  gmt.find_scale(kp1,kp2,matches,center1,center2)
 
-    return [len(kp1),
-            len(kp2), len(matches), timeF - timeI, stats.tmean(angles), stats.tstd(angles), stats.tmean(distances1), stats.tstd(distances1), stats.tmean(distances2), stats.tstd(distances2)]
+    return [len(kp1),len(kp2), len(matches), timeF - timeI, stats.tmean(angles), stats.tstd(angles), stats.tmean(scale), stats.tstd(scale)]
 
 
 if(__name__ == '__main__'):

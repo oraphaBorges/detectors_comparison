@@ -7,10 +7,8 @@ CREATE TABLE datas (
   time FLOAT,
   anglesMean FLOAT,
   anglesSD FLOAT,
-  distances1Mean FLOAT,
-  distances1SD FLOAT,
-  distaces2Mean FLOAT,
-  distances2SD FLOAT,
+  scaleMean FLOAT,
+  scaleSD FLOAT,
   pathImg1 TEXT,
   pathImg2 TEXT
 );
