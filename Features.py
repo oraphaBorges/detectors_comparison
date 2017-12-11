@@ -1,15 +1,33 @@
 import cv2
 from scipy import stats
 import geometry as gmt
-from time import time
+from time import time, strftime
 import numpy as np
 import sqlite3
+import sys
 
-NUM_OF_PAIRS = 10
+NUM_OF_PAIRS = 3
+TABLE_NAME = 'datas_{}'.format(strftime('%y%m%d_%H%M%S'))
 
 def main():
     conn = sqlite3.connect('banco.db')
     cursor = conn.cursor()
+    cursor.execute(
+      """CREATE TABLE {} (
+            technique TEXT,
+            situation TEXT,
+            kp1 INTEGER,
+            kp2 INTEGER,
+            matches INTEGER,
+            time FLOAT,
+            anglesMean FLOAT,
+            anglesSD FLOAT,
+            scaleMean FLOAT,
+            scaleSD FLOAT,
+            pathImg1 TEXT,
+            pathImg2 TEXT
+      );""".format(TABLE_NAME)
+    )
 
     # Initiate detectors
     SIFT = cv2.xfeatures2d.SIFT_create()
@@ -29,13 +47,12 @@ def main():
     }
 
     cases = [
-        'Same Object, Same Scale, Same Resolution, Same Rotation, Indifferent POV',
-        'Same Object, Same Scale, Different Resolution, Same Rotation, Indifferent POV',
-        'Different Object, Same Scale, Same Resolution, Same Rotation, Indifferent POV',
-        'Different Object, Same Scale, Different Resolution, Same Rotation, Indifferent POV',
-        'Same Object, Different Scale, Same Resolution, Same Rotation, Indifferent POV',
-        'Same Object, Same Scale, Indifferent Resolution, Same  Rotation, Same POV',
-        'Same Object, Same Scale, Same Resolution, 90º Rotation, Indifferent POV'
+        'Same Object, Same Scale, Same Resolution, Indifferent POV',
+        'Same Object, Same Scale, Different Resolution, Indifferent POV',
+        'Different Object, Same Scale, Same Resolution, Indifferent POV',
+        'Different Object, Same Scale, Different Resolution, Indifferent POV',
+        'Same Object, Different Scale, Same Resolution, Indifferent POV',
+        'Same Object, Same Scale, Indifferent Resolution, Same POV'
     ]
 
     for case in cases:
@@ -43,20 +60,24 @@ def main():
         for name, method in methods.items():
           print(name)
           print(case)
-          values = getStats(cv2.imread('photos/{}/{}a.jpg'.format(case,pair),0), cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0))
-          values.append(name)
-          values.append(case)
-          values.append('{}a.jpg'.format(pair))
-          values.append('{}b.jpg'.format(pair))
-          cursor.execute("""
-            INSERT INTO datas (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """, tuple(values))
-
+          try:
+            values = getStats(method,cv2.imread('photos/{}/{}a.jpg'.format(case,pair),0), cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0))
+            values.append(name)
+            values.append(case)
+            values.append('{}a.jpg'.format(pair))
+            values.append('{}b.jpg'.format(pair))
+            cursor.execute("""
+              INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+              """.format(TABLE_NAME), tuple(values))
+          except Exception:
+            print(sys.exc_info())
+            pass
+    conn.commit()
     conn.close()
 
 
-def getStats(img1, img2):
+def getStats(method,img1, img2):
     timeI = time()
     # find the keypoints and descriptors with ORB
     kp1, des1 = method.detectAndCompute(img1, None)
