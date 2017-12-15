@@ -10,6 +10,7 @@ NUM_OF_PAIRS = 3
 TABLE_NAME = 'datas_{}'.format(strftime('%y%m%d_%H%M%S'))
 
 def main():
+    executeTimeI = time()
     conn = sqlite3.connect('banco.db')
     cursor = conn.cursor()
     cursor.execute(
@@ -70,11 +71,13 @@ def main():
               INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
               """.format(TABLE_NAME), tuple(values))
+            conn.commit()
           except Exception:
             print(sys.exc_info())
             pass
-    conn.commit()
     conn.close()
+    executeTimeF = time()
+    print('Test executed in {} minutes'.format(executeTimeF-executeTimeI))
 
 
 def getStats(method,img1, img2):
