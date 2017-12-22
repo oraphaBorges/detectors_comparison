@@ -1,10 +1,10 @@
 import cv2
-from scipy import stats
-import geometry as gmt
-from time import time, strftime
-import numpy as np
-import sqlite3
 import sys
+import sqlite3
+import numpy as np
+import geometry as gmt
+from scipy import stats
+from time import time, strftime
 
 NUM_OF_PAIRS = 3
 TABLE_NAME = 'datas_{}'.format(strftime('%y%m%d_%H%M%S'))
@@ -34,7 +34,7 @@ def main():
     SIFT = cv2.xfeatures2d.SIFT_create()
     SURF = cv2.xfeatures2d.SURF_create()
     ORB = cv2.ORB.create()
-    KAZE = cv2.KAZE.create()
+    # KAZE = cv2.KAZE.create()
     AKAZE = cv2.AKAZE.create()
     BRISK = cv2.BRISK.create()
 
@@ -42,7 +42,7 @@ def main():
         'SIFT': SIFT,
         'SURF': SURF,
         'ORB': ORB,
-        'KAZE': KAZE,
+        # 'KAZE': KAZE,
         'AKAZE': AKAZE,
         'BRISK': BRISK
     }
@@ -57,10 +57,11 @@ def main():
     ]
 
     for case in cases:
+      print(case)
       for pair in range(NUM_OF_PAIRS):
+        print('Pair {}/{}'.format(pair, NUM_OF_PAIRS))
         for name, method in methods.items():
           print(name)
-          print(case)
           try:
             values = getStats(method,cv2.imread('photos/{}/{}a.jpg'.format(case,pair),0), cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0))
             values.append(name)
