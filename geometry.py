@@ -5,6 +5,19 @@ from sympy import Point, Line
 def image_center(image):
     return Point(image.shape[1] / 2, image.shape[0] / 2)
 
+# Finds the angles between the horizontal axis
+# and the lines passing through the image center
+# and each keypoint
+def _find_kp_angles(image, kps):
+    angles = []
+    center = image_center(image)
+    h_axis = Line(center, center.translate(center.x))
+    for kp in kps:
+        p = Point(kp.pt[0], kp.pt[1])
+        kp_line = Line(center, p)
+        angles.append(float(h_axis.angle_between(kp_line)))
+    return angles
+
 # Finds the Key's points Angles
 def find_kp_angles(kp1, kp2, matches, center1, center2):
     central_line = Line(center1, center2.translate(2 * center2.x))
