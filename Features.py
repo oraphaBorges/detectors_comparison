@@ -48,22 +48,22 @@ def main():
     }
 
     cases = [
-        'Same Object, Same Scale, Same Resolution, Indifferent POV',
-        'Same Object, Same Scale, Different Resolution, Indifferent POV',
-        'Different Object, Same Scale, Same Resolution, Indifferent POV',
-        'Different Object, Same Scale, Different Resolution, Indifferent POV',
-        'Same Object, Different Scale, Same Resolution, Indifferent POV',
-        'Same Object, Same Scale, Indifferent Resolution, Same POV'
+        'Same Object, Same Scale',
+        'Same Object, Different Scale',
+        'Different Object, Same Scale',
+        'Different Object, Different Scale',
     ]
 
     for case in cases:
       print(case)
       for pair in range(NUM_OF_PAIRS):
         print('Pair {}/{}'.format(pair, NUM_OF_PAIRS))
+        img1 = cv2.imread('photos/{}/{}a.jpg'.format(case,pair),0)
+        img2 = cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0)
         for name, method in methods.items():
           print(name)
           try:
-            values = getStats(method,cv2.imread('photos/{}/{}a.jpg'.format(case,pair),0), cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0))
+            values = getStats(method,img1,img2)
             values.append(name)
             values.append(case)
             values.append('{}a.jpg'.format(pair))
@@ -76,6 +76,8 @@ def main():
           except Exception:
             print(sys.exc_info())
             pass
+        del img1
+        del img2
     conn.close()
     executeTimeF = time()
     print('Test executed in {} minutes'.format(executeTimeF-executeTimeI))
