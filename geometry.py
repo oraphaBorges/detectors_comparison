@@ -8,7 +8,7 @@ def image_center(image):
 # Finds the angles between the horizontal axis
 # and the lines passing through the image center
 # and each keypoint
-def _find_kp_angles(image, kps):
+def g_find_kp_angles(image, kps):
     angles = []
     center = image_center(image)
     h_axis = Line(center, center.translate(center.x))
@@ -17,6 +17,13 @@ def _find_kp_angles(image, kps):
         kp_line = Line(center, p)
         angles.append(float(h_axis.angle_between(kp_line)))
     return angles
+
+def angles_dif(angles_img1, angles_img2, matches):
+    dif = []
+    for match in matches :
+        dif.append(angles_img1[match.queryIdx] - angles_img2[match.trainIdx])
+
+    return dif
 
 # Finds the Key's points Angles
 def find_kp_angles(kp1, kp2, matches, center1, center2):
@@ -29,7 +36,7 @@ def find_kp_angles(kp1, kp2, matches, center1, center2):
         angles.append(float(central_line.angle_between(match_line)))
     return angles
 
-def _find_scale(image, kps):
+def g_find_scale(image, kps):
     scale = []
     center = image_center(image)
     for kp in kps:
@@ -41,8 +48,8 @@ def _find_scale(image, kps):
 # Finds the ratio of the keypoints scale between images
 def find_scale_ratios(img1, kp1, img2, kp2, matches):
     ratios = []
-    scale1 = _find_scale(img1, kp1)
-    scale2 = _find_scale(img2, kp2)
+    scale1 = g_find_scale(img1, kp1)
+    scale2 = g_find_scale(img2, kp2)
     for match in matches:
         # scale list preserves the ordering from keypoints list
         d1 = scale1[match.queryIdx]

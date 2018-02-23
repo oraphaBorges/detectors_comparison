@@ -5,8 +5,9 @@ import numpy as np
 import geometry as gmt
 from scipy import stats
 from time import time, strftime
+from matplotlib import pyplot as plt
 
-NUM_OF_PAIRS = 3
+NUM_OF_PAIRS = 1
 TABLE_NAME = 'datas_{}'.format(strftime('%y%m%d_%H%M%S'))
 
 def main():
@@ -32,26 +33,26 @@ def main():
 
     # Initiate detectors
     SIFT = cv2.xfeatures2d.SIFT_create()
-    SURF = cv2.xfeatures2d.SURF_create()
-    ORB = cv2.ORB.create()
-    # KAZE = cv2.KAZE.create()
-    AKAZE = cv2.AKAZE.create()
-    BRISK = cv2.BRISK.create()
+    # SURF = cv2.xfeatures2d.SURF_create()
+    # ORB = cv2.ORB.create()
+    # # KAZE = cv2.KAZE.create()
+    # AKAZE = cv2.AKAZE.create()
+    # BRISK = cv2.BRISK.create()
 
     methods = {
         'SIFT': SIFT,
-        'SURF': SURF,
-        'ORB': ORB,
+        # 'SURF': SURF,
+        # 'ORB': ORB,
         # 'KAZE': KAZE,
-        'AKAZE': AKAZE,
-        'BRISK': BRISK
+        # 'AKAZE': AKAZE,
+        # 'BRISK': BRISK
     }
 
     cases = [
         'Same Object, Same Scale',
-        'Same Object, Different Scale',
-        'Different Object, Same Scale',
-        'Different Object, Different Scale',
+        # 'Same Object, Different Scale',
+        # 'Different Object, Same Scale',
+        # 'Different Object, Different Scale',
     ]
 
     for case in cases:
@@ -73,6 +74,12 @@ def main():
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
               """.format(TABLE_NAME), tuple(values))
             conn.commit()
+            center2 = gmt.image_center(img2)
+            m = cv2.getRotationMatrix2D(center2,mean_angles,mean_scale)
+            dst = cv2.warpAffine(img2,m,img2.shape)
+            plt.imshow(dst)
+            plt.imshow(img2)
+            plt.show()
           except Exception:
             print(sys.exc_info())
             pass
@@ -100,12 +107,19 @@ def getStats(method,img1, img2):
     matches = sorted(matches, key=lambda x: x.distance)
 
     # Standard Deviation
-    center1 = gmt.image_center(img1)
-    center2 = gmt.image_center(img2)
-    angles = gmt.find_kp_angles(kp1, kp2, matches, center1, center2)
-    scale =  gmt.find_scale(kp1,kp2,matches,center1,center2)
+    # center1 = gmt.image_center(img1)
+    # angles = gmt.find_kp_angles(kp1, kp2, matches, center1, center2)
+    angles_img1 = gmt.g_find_kp_angles(img1,kp1)
+    angles_img2 = gmt.g_find_kp_angles(img2,kp2)
+    dif = gmt.angles_dif(angles_img1,angles_img2,matches)
+    scale =  gmt.find_scale_ratios(img1, kp1, img2, kp2, matches)
 
-    return [len(kp1),len(kp2), len(matches), timeF - timeI, stats.tmean(angles), stats.tstd(angles), stats.tmean(scale), stats.tstd(scale)]
+    mean_angles = stats.tstd(dif)
+    mean_scale = stats.tmean(scale)
+    std_scales = stats.tstd(scale)
+    std_angles = stats.tstd(dif)
+
+    return [len(kp1),len(kp2), len(matches), timeF - timeI, mean_angles, std_angles, mean_scale, std_scales]
 
 
 if(__name__ == '__main__'):
