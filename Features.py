@@ -32,17 +32,17 @@ def main():
     )
 
     # Initiate detectors
-    SIFT = cv2.xfeatures2d.SIFT_create()
+    # SIFT = cv2.xfeatures2d.SIFT_create()
     # SURF = cv2.xfeatures2d.SURF_create()
-    # ORB = cv2.ORB.create()
+    ORB = cv2.ORB.create()
     # # KAZE = cv2.KAZE.create()
     # AKAZE = cv2.AKAZE.create()
     # BRISK = cv2.BRISK.create()
 
     methods = {
-        'SIFT': SIFT,
+        # 'SIFT': SIFT,
         # 'SURF': SURF,
-        # 'ORB': ORB,
+        'ORB': ORB,
         # 'KAZE': KAZE,
         # 'AKAZE': AKAZE,
         # 'BRISK': BRISK
@@ -58,7 +58,7 @@ def main():
     for case in cases:
       print(case)
       for pair in range(NUM_OF_PAIRS):
-        print('Pair {}/{}'.format(pair, NUM_OF_PAIRS))
+        print('Pair {}/{}'.format(pair + 1, NUM_OF_PAIRS))
         img1 = cv2.imread('photos/{}/{}a.jpg'.format(case,pair),0)
         img2 = cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0)
         for name, method in methods.items():
@@ -74,12 +74,17 @@ def main():
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
               """.format(TABLE_NAME), tuple(values))
             conn.commit()
-            center2 = gmt.image_center(img2)
-            m = cv2.getRotationMatrix2D(center2,mean_angles,mean_scale)
-            dst = cv2.warpAffine(img2,m,img2.shape)
-            plt.imshow(dst)
-            plt.imshow(img2)
-            plt.show()
+
+            # print("Stats calculated...")
+            # mean_angles = values[4]
+            # mean_scale = values[6]
+            # center2 = gmt.image_center(img2)
+            # m = cv2.getRotationMatrix2D((center2.x, center2.y),mean_angles,mean_scale)
+            # dst = cv2.warpAffine(img2,m,img2.shape)
+            # # plt.imshow(dst)
+            # # plt.imshow(img2)
+            # plt.imshow(cv2.drawMatchesK(img1,kp1,dst,kp2,[]))
+            # plt.show()
           except Exception:
             print(sys.exc_info())
             pass
@@ -106,21 +111,26 @@ def getStats(method,img1, img2):
     # Sort them in the order of their distance.
     matches = sorted(matches, key=lambda x: x.distance)
 
-    # Standard Deviation
-    # center1 = gmt.image_center(img1)
-    # angles = gmt.find_kp_angles(kp1, kp2, matches, center1, center2)
     angles_img1 = gmt.g_find_kp_angles(img1,kp1)
     angles_img2 = gmt.g_find_kp_angles(img2,kp2)
     dif = gmt.angles_dif(angles_img1,angles_img2,matches)
     scale =  gmt.find_scale_ratios(img1, kp1, img2, kp2, matches)
 
     mean_angles = stats.tstd(dif)
-    mean_scale = stats.tmean(scale)
-    std_scales = stats.tstd(scale)
     std_angles = stats.tstd(dif)
 
-    return [len(kp1),len(kp2), len(matches), timeF - timeI, mean_angles, std_angles, mean_scale, std_scales]
+    mean_scale = stats.tmean(scale)
+    std_scales = stats.tstd(scale)
 
+    
+    print("Stats calculated...")
+    center2 = gmt.image_center(img2)
+    m = cv2.getRotationMatrix2D((center2.x, center2.y), mean_angles, mean_scale)
+    dst = cv2.warpAffine(img2, m, img2.shape)
+    plt.imshow(cv2.drawMatches(img1, kp1, dst, kp2, [], None))
+    plt.show()
+
+    return [len(kp1),len(kp2), len(matches), timeF - timeI, mean_angles, std_angles, mean_scale, std_scales]
 
 if(__name__ == '__main__'):
     main()
