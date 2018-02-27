@@ -1,5 +1,6 @@
 import numpy
 from sympy import Point, Line
+import cv2
 
 # Finds the image's center
 def image_center(image):
@@ -24,6 +25,20 @@ def angles_dif(angles_img1, angles_img2, matches):
         dif.append(angles_img1[match.queryIdx] - angles_img2[match.trainIdx])
 
     return dif
+
+def remove_fake_matches(kp1,kp2,matches,angles_img1,angles_img2,mean_angles,angles_std,scales,mean_scale,scale_std):
+    new_scales,new_angles_img1,new_angles_img2,new_matches = [],[],[],[]
+    for i in range(len(matches)):
+        dif_angles = angles_img1[matches[i].queryIdx] - angles_img2[matches[i].trainIdx]
+        if dif_angles < mean_angles + angles_std and dif_angles > mean_angles - angles_std and scales[i] < mean_scale + scale_std and scales[i] > mean_angles - scale_std:
+            new_scales.append(scales[i])
+            new_angles_img1.append(angles_img1[matches[i].queryIdx])
+            new_angles_img2.append(angles_img2[matches[i].trainIdx])
+            matches[i].queryIdx = matches[i].trainIdx = i
+            new_matches.append(matches[i])
+    return new_angles_img1,new_angles_img2,new_scales,new_matches
+
+
 
 # Finds the Key's points Angles
 def find_kp_angles(kp1, kp2, matches, center1, center2):
@@ -67,3 +82,8 @@ def find_scale(kp1, kp2, matches, center1, center2):
         d2 = center2.distance(p2)
         scale.append(float(d1 / d2))
     return scale
+
+def affine_trans(img,angles,scale):
+    center = image_center(img)
+    m = cv2.getRotationMatrix2D((center.y, center.x), angles, scale)
+    return cv2.warpAffine(img, m, (img.shape[1],img.shape[0]))

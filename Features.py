@@ -64,27 +64,50 @@ def main():
         for name, method in methods.items():
           print(name)
           try:
-            values = getStats(method,img1,img2)
-            values.append(name)
-            values.append(case)
-            values.append('{}a.jpg'.format(pair))
-            values.append('{}b.jpg'.format(pair))
+            angles_img1,angles_img2,angles_dif,scales,kp1,kp2,matches,values = prep_values(img1,img2,method,name,case,pair)
             cursor.execute("""
               INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
               """.format(TABLE_NAME), tuple(values))
             conn.commit()
 
-            # print("Stats calculated...")
-            # mean_angles = values[4]
-            # mean_scale = values[6]
-            # center2 = gmt.image_center(img2)
-            # m = cv2.getRotationMatrix2D((center2.x, center2.y),mean_angles,mean_scale)
-            # dst = cv2.warpAffine(img2,m,img2.shape)
-            # # plt.imshow(dst)
-            # # plt.imshow(img2)
-            # plt.imshow(cv2.drawMatchesK(img1,kp1,dst,kp2,[]))
-            # plt.show()
+            
+            print("Stats 1 calculated...")
+            mean_angles = values[4]
+            angles_std = values[5]
+            mean_scale = values[6]
+            scale_std = values[7]
+            dst = gmt.affine_trans(img1,mean_angles,mean_scale)
+            ploting_image_pair(dst,img2)
+
+
+            angles_img1,angles_img2,scales,matches = gmt.remove_fake_matches(kp1,kp2,matches,angles_img1,angles_img2,mean_angles,angles_std,scales,mean_scale,scale_std)
+
+            print("Removed fake matches...")
+            angles_dif = gmt.angles_dif(angles_img1,angles_img2,matches)
+
+            mean_angles = stats.tstd(angles_dif)
+            std_angles = stats.tstd(angles_dif)
+
+            mean_scale = stats.tmean(scales)
+            std_scales = stats.tstd(scales)
+
+
+            dst = gmt.affine_trans(img1,mean_angles,mean_scale)
+            ploting_image_pair(dst,img2)
+
+            values[2] = len(matches)
+            values[4] = mean_angles
+            values[5] = angles_std
+            values[6] = mean_scale
+            values[7] = angles_std
+
+            cursor.execute("""
+              INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+              """.format(TABLE_NAME), tuple(values))
+            conn.commit()
+
           except Exception:
             print(sys.exc_info())
             pass
@@ -92,7 +115,7 @@ def main():
         del img2
     conn.close()
     executeTimeF = time()
-    print('Test executed in {} minutes'.format(executeTimeF-executeTimeI))
+    print('Test executed in {} seconds'.format(executeTimeF-executeTimeI))
 
 
 def getStats(method,img1, img2):
@@ -111,26 +134,43 @@ def getStats(method,img1, img2):
     # Sort them in the order of their distance.
     matches = sorted(matches, key=lambda x: x.distance)
 
-    angles_img1 = gmt.g_find_kp_angles(img1,kp1)
-    angles_img2 = gmt.g_find_kp_angles(img2,kp2)
-    dif = gmt.angles_dif(angles_img1,angles_img2,matches)
-    scale =  gmt.find_scale_ratios(img1, kp1, img2, kp2, matches)
+    return [kp1,kp2, matches, timeF - timeI]
 
-    mean_angles = stats.tstd(dif)
-    std_angles = stats.tstd(dif)
 
-    mean_scale = stats.tmean(scale)
-    std_scales = stats.tstd(scale)
-
-    
-    print("Stats calculated...")
-    center2 = gmt.image_center(img2)
-    m = cv2.getRotationMatrix2D((center2.x, center2.y), mean_angles, mean_scale)
-    dst = cv2.warpAffine(img2, m, img2.shape)
-    plt.imshow(cv2.drawMatches(img1, kp1, dst, kp2, [], None))
+def ploting_image_pair(left,right):
+    fig = plt.figure()  
+    fig.add_subplot(1,2,1)
+    plt.imshow(left)
+    fig.add_subplot(1,2,2)
+    plt.imshow(right)
     plt.show()
 
-    return [len(kp1),len(kp2), len(matches), timeF - timeI, mean_angles, std_angles, mean_scale, std_scales]
+def prep_values(img1,img2,method,name,case,pair):
+    values = getStats(method,img1,img2)
+    kp1,kp2,matches = values[0],values[1],values[2]
+    values[0],values[1],values[2] = len(kp1),len(kp2),len(matches)
+
+    angles_img1 = gmt.g_find_kp_angles(img1,kp1)
+    angles_img2 = gmt.g_find_kp_angles(img2,kp2)
+    angles_dif = gmt.angles_dif(angles_img1,angles_img2,matches)
+    scales =  gmt.find_scale_ratios(img1, kp1, img2, kp2, matches)
+
+    mean_angles = stats.tstd(angles_dif)
+    std_angles = stats.tstd(angles_dif)
+
+    mean_scale = stats.tmean(scales)
+    std_scales = stats.tstd(scales)
+
+    values.append(mean_angles)
+    values.append(std_angles)
+    values.append(mean_scale)
+    values.append(std_scales)
+    values.append(name)
+    values.append(case)
+    values.append('{}a.jpg'.format(pair))
+    values.append('{}b.jpg'.format(pair))
+
+    return angles_img1,angles_img2,angles_dif,scales,kp1, kp2, matches, values
 
 if(__name__ == '__main__'):
     main()
