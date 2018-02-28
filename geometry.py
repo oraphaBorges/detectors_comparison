@@ -27,16 +27,14 @@ def angles_dif(angles_img1, angles_img2, matches):
     return dif
 
 def remove_fake_matches(kp1,kp2,matches,angles_img1,angles_img2,mean_angles,angles_std,scales,mean_scale,scale_std):
-    new_scales,new_angles_img1,new_angles_img2,new_matches = [],[],[],[]
+    new_scales,new_angles_img1,new_angles_img2 = [],[],[]
     for i in range(len(matches)):
         dif_angles = angles_img1[matches[i].queryIdx] - angles_img2[matches[i].trainIdx]
         if dif_angles < mean_angles + angles_std and dif_angles > mean_angles - angles_std and scales[i] < mean_scale + scale_std and scales[i] > mean_angles - scale_std:
             new_scales.append(scales[i])
             new_angles_img1.append(angles_img1[matches[i].queryIdx])
             new_angles_img2.append(angles_img2[matches[i].trainIdx])
-            matches[i].queryIdx = matches[i].trainIdx = i
-            new_matches.append(matches[i])
-    return new_angles_img1,new_angles_img2,new_scales,new_matches
+    return new_angles_img1,new_angles_img2,new_scales
 
 
 

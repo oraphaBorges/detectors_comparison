@@ -63,54 +63,47 @@ def main():
         img2 = cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0)
         for name, method in methods.items():
           print(name)
-          try:
-            angles_img1,angles_img2,angles_dif,scales,kp1,kp2,matches,values = prep_values(img1,img2,method,name,case,pair)
-            cursor.execute("""
-              INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-              """.format(TABLE_NAME), tuple(values))
-            conn.commit()
-
-            
-            print("Stats 1 calculated...")
-            mean_angles = values[4]
-            angles_std = values[5]
-            mean_scale = values[6]
-            scale_std = values[7]
-            dst = gmt.affine_trans(img1,mean_angles,mean_scale)
-            ploting_image_pair(dst,img2)
+          angles_img1,angles_img2,angles_dif,scales,kp1,kp2,matches,values = prep_values(img1,img2,method,name,case,pair)
+          cursor.execute("""
+            INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """.format(TABLE_NAME), tuple(values))
+          conn.commit()
 
 
-            angles_img1,angles_img2,scales,matches = gmt.remove_fake_matches(kp1,kp2,matches,angles_img1,angles_img2,mean_angles,angles_std,scales,mean_scale,scale_std)
-
-            print("Removed fake matches...")
-            angles_dif = gmt.angles_dif(angles_img1,angles_img2,matches)
-
-            mean_angles = stats.tstd(angles_dif)
-            std_angles = stats.tstd(angles_dif)
-
-            mean_scale = stats.tmean(scales)
-            std_scales = stats.tstd(scales)
+          print("Stats 1 calculated...")
+          mean_angles = values[4]
+          angles_std = values[5]
+          mean_scale = values[6]
+          scale_std = values[7]
+          dst = gmt.affine_trans(img1,mean_angles,mean_scale)
+          ploting_image_pair(dst,img2)
 
 
-            dst = gmt.affine_trans(img1,mean_angles,mean_scale)
-            ploting_image_pair(dst,img2)
+          angles_img1,angles_img2,scales = gmt.remove_fake_matches(kp1,kp2,matches,angles_img1,angles_img2,mean_angles,angles_std,scales,mean_scale,scale_std)
+          print("Removed fake matches...")
+          angles_dif = list(map(lambda x,y:x-y,angles_img1,angles_img2))
 
-            values[2] = len(matches)
-            values[4] = mean_angles
-            values[5] = angles_std
-            values[6] = mean_scale
-            values[7] = angles_std
+          mean_angles = stats.tstd(angles_dif)
+          std_angles = stats.tstd(angles_dif)
 
-            cursor.execute("""
-              INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-              """.format(TABLE_NAME), tuple(values))
-            conn.commit()
+          mean_scale = stats.tmean(scales)
+          std_scales = stats.tstd(scales)
 
-          except Exception:
-            print(sys.exc_info())
-            pass
+          dst = gmt.affine_trans(img1,mean_angles,mean_scale)
+          ploting_image_pair(dst,img2)
+
+          values[2] = len(matches)
+          values[4] = mean_angles
+          values[5] = angles_std
+          values[6] = mean_scale
+          values[7] = angles_std
+
+          cursor.execute("""
+            INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """.format(TABLE_NAME), tuple(values))
+          conn.commit()
         del img1
         del img2
     conn.close()
@@ -138,7 +131,7 @@ def getStats(method,img1, img2):
 
 
 def ploting_image_pair(left,right):
-    fig = plt.figure()  
+    fig = plt.figure()
     fig.add_subplot(1,2,1)
     plt.imshow(left)
     fig.add_subplot(1,2,2)
