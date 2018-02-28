@@ -27,7 +27,8 @@ def main():
             scaleMean FLOAT,
             scaleSD FLOAT,
             pathImg1 TEXT,
-            pathImg2 TEXT
+            pathImg2 TEXT,
+            phase INTEGER
       );""".format(TABLE_NAME)
     )
 
@@ -63,47 +64,43 @@ def main():
         img2 = cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0)
         for name, method in methods.items():
           print(name)
-          angles_img1,angles_img2,angles_dif,scales,kp1,kp2,matches,values = prep_values(img1,img2,method,name,case,pair)
-          cursor.execute("""
-            INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """.format(TABLE_NAME), tuple(values))
-          conn.commit()
+          print("Phase One: Compares unaltered images")
+          angles_dif,scales,matches,original_values = prep_values(img1,img2,method,name,case,pair)
+          original_values.append(1)
+          save(conn, cursor,tuple(original_values))
 
-
-          print("Stats 1 calculated...")
-          mean_angles = values[4]
-          angles_std = values[5]
-          mean_scale = values[6]
-          scale_std = values[7]
+          print('Phase two: Calculates the transformation')
+          mean_angles = original_values[4]
+          mean_scale = original_values[6]
           dst = gmt.affine_trans(img1,mean_angles,mean_scale)
           ploting_image_pair(dst,img2)
+          _,_,_,values = prep_values(dst,img2,method,name,case,pair)
+          values.append(2)
 
+          save(conn, cursor,tuple(values))
 
-          angles_img1,angles_img2,scales = gmt.remove_fake_matches(kp1,kp2,matches,angles_img1,angles_img2,mean_angles,angles_std,scales,mean_scale,scale_std)
-          print("Removed fake matches...")
-          angles_dif = list(map(lambda x,y:x-y,angles_img1,angles_img2))
+          print("Phase three: Removes fake matches")
+          mean_angles = original_values[4]
+          angles_std = original_values[5]
+          mean_scale = original_values[6]
+          scale_std = original_values[7]
+
+          angles_dif,scales = gmt.remove_fake_matches(matches,angles_dif,mean_angles,angles_std,scales,mean_scale,scale_std)
 
           mean_angles = stats.tstd(angles_dif)
-          std_angles = stats.tstd(angles_dif)
-
+          angles_std = stats.tstd(angles_dif)
           mean_scale = stats.tmean(scales)
-          std_scales = stats.tstd(scales)
+          scale_std = stats.tstd(scales)
 
           dst = gmt.affine_trans(img1,mean_angles,mean_scale)
           ploting_image_pair(dst,img2)
 
-          values[2] = len(matches)
-          values[4] = mean_angles
-          values[5] = angles_std
-          values[6] = mean_scale
-          values[7] = angles_std
+          _,_,_,values = prep_values(dst,img2,method,name,case,pair)
 
-          cursor.execute("""
-            INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """.format(TABLE_NAME), tuple(values))
-          conn.commit()
+          values.append(3)
+
+          save(conn, cursor,tuple(values))
+
         del img1
         del img2
     conn.close()
@@ -129,6 +126,12 @@ def getStats(method,img1, img2):
 
     return [kp1,kp2, matches, timeF - timeI]
 
+def save(conn,cursor,values):
+    cursor.execute("""
+      INSERT INTO {} (kp1,kp2,matches,time,anglesMean,anglesSD,scaleMean,scaleSD,technique,situation,pathImg1,pathImg2,phase)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      """.format(TABLE_NAME), values)
+    conn.commit()
 
 def ploting_image_pair(left,right):
     fig = plt.figure()
@@ -163,7 +166,7 @@ def prep_values(img1,img2,method,name,case,pair):
     values.append('{}a.jpg'.format(pair))
     values.append('{}b.jpg'.format(pair))
 
-    return angles_img1,angles_img2,angles_dif,scales,kp1, kp2, matches, values
+    return angles_dif,scales,matches, values
 
 if(__name__ == '__main__'):
     main()
