@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 
 NUM_OF_PAIRS = 1
 TABLE_NAME = 'datas_{}'.format(strftime('%y%m%d_%H%M%S'))
+ONLY_SAVE = True
 
 def main():
     executeTimeI = time()
@@ -63,43 +64,51 @@ def main():
         img1 = cv2.imread('photos/{}/{}a.jpg'.format(case,pair),0)
         img2 = cv2.imread('photos/{}/{}b.jpg'.format(case,pair),0)
         for name, method in methods.items():
-          print(name)
-          print("Phase One: Compares unaltered images")
-          angles_dif,scales,matches,original_values = prep_values(img1,img2,method,name,case,pair)
-          original_values.append(1)
-          save(conn, cursor,tuple(original_values))
+            print(name)
+            print("Phase One: Compares unaltered images")
+            angles_dif,scales,kp1,kp2,matches,original_values = prep_values(img1,img2,method,name,case,pair)
+            original_values.append(1)
 
-          print('Phase two: Calculates the transformation')
-          mean_angles = original_values[4]
-          mean_scale = original_values[6]
-          dst = gmt.affine_trans(img1,mean_angles,mean_scale)
-          ploting_image_pair(dst,img2)
-          _,_,_,values = prep_values(dst,img2,method,name,case,pair)
-          values.append(2)
+            result = cv2.drawMatches(img1,kp1,img2,kp2,matches,outImg=None)
 
-          save(conn, cursor,tuple(values))
+            save(conn, cursor,tuple(original_values))
+            plot_matches(result,ONLY_SAVE,'results/{}/{}_p1.png'.format(case,pair))
 
-          print("Phase three: Removes fake matches")
-          mean_angles = original_values[4]
-          angles_std = original_values[5]
-          mean_scale = original_values[6]
-          scale_std = original_values[7]
+            print('Phase two: Calculates the transformation')
+            mean_angles = original_values[4]
+            mean_scale = original_values[6]
+            dst = gmt.affine_trans(img1,mean_angles,mean_scale)
 
-          angles_dif,scales = gmt.remove_fake_matches(matches,angles_dif,mean_angles,angles_std,scales,mean_scale,scale_std)
+            _,_,kp1,kp2,matches,values = prep_values(dst,img2,method,name,case,pair)
+            values.append(2)
 
-          mean_angles = stats.tstd(angles_dif)
-          angles_std = stats.tstd(angles_dif)
-          mean_scale = stats.tmean(scales)
-          scale_std = stats.tstd(scales)
+            result = cv2.drawMatches(dst,kp1,img2,kp2,matches,outImg=None)
 
-          dst = gmt.affine_trans(img1,mean_angles,mean_scale)
-          ploting_image_pair(dst,img2)
+            save(conn, cursor,tuple(values))
+            plot_matches(result,ONLY_SAVE,'results/{}/{}_p2.png'.format(case,pair))
 
-          _,_,_,values = prep_values(dst,img2,method,name,case,pair)
+            print("Phase three: Removes fake matches")
+            mean_angles = original_values[4]
+            angles_std = original_values[5]
+            mean_scale = original_values[6]
+            scale_std = original_values[7]
 
-          values.append(3)
+            angles_dif,scales = gmt.remove_fake_matches(matches,angles_dif,mean_angles,angles_std,scales,mean_scale,scale_std)
 
-          save(conn, cursor,tuple(values))
+            mean_angles = stats.tstd(angles_dif)
+            angles_std = stats.tstd(angles_dif)
+            mean_scale = stats.tmean(scales)
+            scale_std = stats.tstd(scales)
+
+            dst = gmt.affine_trans(img1,mean_angles,mean_scale)
+            # ploting_image_pair(dst,img2)
+            _,_,kp1,kp2,matches,values = prep_values(dst,img2,method,name,case,pair)
+
+            values.append(3)
+            result = cv2.drawMatches(dst,kp1,img2,kp2,matches,outImg=None)
+
+            save(conn, cursor,tuple(values))
+            plot_matches(result,ONLY_SAVE,'results/{}/{}_p3.png'.format(case,pair))
 
         del img1
         del img2
@@ -122,7 +131,7 @@ def getStats(method,img1, img2):
     matches = bf.match(des1, des2)
 
     # Sort them in the order of their distance.
-    matches = sorted(matches, key=lambda x: x.distance)
+    # matches = sorted(matches, key=lambda x: x.distance)
 
     return [kp1,kp2, matches, timeF - timeI]
 
@@ -133,13 +142,13 @@ def save(conn,cursor,values):
       """.format(TABLE_NAME), values)
     conn.commit()
 
-def ploting_image_pair(left,right):
-    fig = plt.figure()
-    fig.add_subplot(1,2,1)
-    plt.imshow(left)
-    fig.add_subplot(1,2,2)
-    plt.imshow(right)
-    plt.show()
+def plot_matches(img,option,path):
+    if option == ONLY_SAVE :
+        cv2.imwrite(path,img)
+    else:
+        plt.imshow(img)
+        plt.show()
+
 
 def prep_values(img1,img2,method,name,case,pair):
     values = getStats(method,img1,img2)
@@ -166,7 +175,7 @@ def prep_values(img1,img2,method,name,case,pair):
     values.append('{}a.jpg'.format(pair))
     values.append('{}b.jpg'.format(pair))
 
-    return angles_dif,scales,matches, values
+    return angles_dif,scales,kp1,kp2,matches, values
 
 if(__name__ == '__main__'):
     main()
