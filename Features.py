@@ -9,12 +9,12 @@ from matplotlib import pyplot as plt
 
 SAVE_ONLY = True
 NUM_OF_PAIRS = 1
-TABLE_NAME = 'datas_{}'.format(strftime('%y%m%d_%H%M%S'))
+TABLE_NAME = "datas_{}".format(strftime("%y%m%d_%H%M%S"))
 
 
 def main():
     executeTimeI = time()
-    conn = sqlite3.connect('banco.db')
+    conn = sqlite3.connect("banco.db")
     cursor = conn.cursor()
     cursor.execute(
         """CREATE TABLE {} (
@@ -35,51 +35,51 @@ def main():
     )
 
     # Initiate detectors
-    SIFT = cv2.xfeatures2d.SIFT_create()
-    SURF = cv2.xfeatures2d.SURF_create()
     ORB = cv2.ORB.create()
     AKAZE = cv2.AKAZE.create()
     BRISK = cv2.BRISK.create()
+    SIFT = cv2.xfeatures2d.SIFT_create()
+    SURF = cv2.xfeatures2d.SURF_create()
 
     methods = {
-        'SIFT': SIFT,
-        'SURF': SURF,
-        'ORB': ORB,
-        'AKAZE': AKAZE,
-        'BRISK': BRISK
+        "ORB": ORB,
+        "AKAZE": AKAZE,
+        "BRISK": BRISK,
+        "SIFT": SIFT,
+        "SURF": SURF
     }
 
     cases = [
-        'Same Object, Same Scale',
-        'Same Object, Different Scale',
-        'Different Object, Same Scale',
-        'Different Object, Different Scale'
+        "Same Object, Same Scale",
+        "Same Object, Different Scale",
+        "Different Object, Same Scale",
+        "Different Object, Different Scale"
     ]
 
     for case in cases:
         print(case)
         for pair in range(NUM_OF_PAIRS):
-            print('Pair {}/{}'.format(pair + 1, NUM_OF_PAIRS))
-            img1 = cv2.imread('photos/{}/{}a.jpg'.format(case, pair), 0)
-            img2 = cv2.imread('photos/{}/{}b.jpg'.format(case, pair), 0)
+            print("Pair {}/{}".format(pair + 1, NUM_OF_PAIRS))
+            img1 = cv2.imread("photos/{}/{}a.jpg".format(case, pair), 0)
+            img2 = cv2.imread("photos/{}/{}b.jpg".format(case, pair), 0)
             for name, method in methods.items():
                 print(name)
                 print("Phase One: Compares unaltered images")
-                angles_dif, scales, kp1, kp2, matches, original_values = prep_values(
+                angles_dif, scales, kp1, kp2, origin_matches, origin_values = prep_values(
                     img1, img2, method, name, case, pair)
-                original_values.append(1)
+                origin_values.append(1)
 
                 result = cv2.drawMatches(
-                    img1, kp1, img2, kp2, matches, outImg=None)
+                    img1, kp1, img2, kp2, origin_matches, outImg=None)
 
-                save(conn, cursor, tuple(original_values))
+                save(conn, cursor, tuple(origin_values))
                 plot_matches(result, SAVE_ONLY,
-                             'results/{}/{}_p1.png'.format(case, pair))
+                             "results/{}/{}_p1.png".format(case, pair))
 
-                print('Phase two: Calculates the transformation')
-                mean_angles = original_values[4]
-                mean_scale = original_values[6]
-                dst = gmt.affine_trans(img1, mean_angles, mean_scale)
+                print("Phase two: Calculates the transformation")
+                angles_mean = origin_values[4]
+                scale_mean = origin_values[6]
+                dst = gmt.affine_trans(img1, angles_mean, scale_mean)
 
                 _, _, kp1, kp2, matches, values = prep_values(
                     dst, img2, method, name, case, pair)
@@ -90,23 +90,23 @@ def main():
 
                 save(conn, cursor, tuple(values))
                 plot_matches(result, SAVE_ONLY,
-                             'results/{}/{}_p2.png'.format(case, pair))
+                             "results/{}/{}_p2.png".format(case, pair))
 
                 print("Phase three: Removes fake matches")
-                mean_angles = original_values[4]
-                angles_std = original_values[5]
-                mean_scale = original_values[6]
-                scale_std = original_values[7]
+                angles_mean = origin_values[4]
+                angles_std = origin_values[5]
+                scale_mean = origin_values[6]
+                scale_std = origin_values[7]
 
                 angles_dif, scales = gmt.remove_fake_matches(
-                    matches, angles_dif, mean_angles, angles_std, scales, mean_scale, scale_std)
+                    origin_matches, angles_dif, angles_mean, angles_std, scales, scale_mean, scale_std)
 
-                mean_angles = stats.tstd(angles_dif)
+                angles_mean = stats.tmean(angles_dif)
                 angles_std = stats.tstd(angles_dif)
-                mean_scale = stats.tmean(scales)
+                scale_mean = stats.tmean(scales)
                 scale_std = stats.tstd(scales)
 
-                dst = gmt.affine_trans(img1, mean_angles, mean_scale)
+                dst = gmt.affine_trans(img1, angles_mean, scale_mean)
                 _, _, kp1, kp2, matches, values = prep_values(
                     dst, img2, method, name, case, pair)
                 values.append(3)
@@ -116,13 +116,13 @@ def main():
 
                 save(conn, cursor, tuple(values))
                 plot_matches(result, SAVE_ONLY,
-                             'results/{}/{}_p3.png'.format(case, pair))
+                             "results/{}/{}_p3.png".format(case, pair))
 
             del img1
             del img2
     conn.close()
     executeTimeF = time()
-    print('Test executed in {} seconds'.format(executeTimeF-executeTimeI))
+    print("Test executed in {} seconds".format(executeTimeF - executeTimeI))
 
 
 def getStats(method, img1, img2):
@@ -169,23 +169,23 @@ def prep_values(img1, img2, method, name, case, pair):
     angles_dif = gmt.angles_dif(angles_img1, angles_img2, matches)
     scales = gmt.find_scale_ratios(img1, kp1, img2, kp2, matches)
 
-    mean_angles = stats.tstd(angles_dif)
-    std_angles = stats.tstd(angles_dif)
+    angles_mean = stats.tmean(angles_dif)
+    angles_std = stats.tstd(angles_dif)
 
-    mean_scale = stats.tmean(scales)
-    std_scales = stats.tstd(scales)
+    scale_mean = stats.tmean(scales)
+    scale_std = stats.tstd(scales)
 
-    values.append(mean_angles)
-    values.append(std_angles)
-    values.append(mean_scale)
-    values.append(std_scales)
+    values.append(angles_mean)
+    values.append(angles_std)
+    values.append(scale_mean)
+    values.append(scale_std)
     values.append(name)
     values.append(case)
-    values.append('{}a.jpg'.format(pair))
-    values.append('{}b.jpg'.format(pair))
+    values.append("{}a.jpg".format(pair))
+    values.append("{}b.jpg".format(pair))
 
     return angles_dif, scales, kp1, kp2, matches, values
 
 
-if(__name__ == '__main__'):
+if(__name__ == "__main__"):
     main()

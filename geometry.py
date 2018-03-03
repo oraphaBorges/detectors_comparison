@@ -29,10 +29,10 @@ def angles_dif(angles_img1, angles_img2, matches):
     return dif
 
 
-def remove_fake_matches(matches, dif_angles, mean_angles, angles_std, scales, mean_scale, scale_std):
+def remove_fake_matches(matches, dif_angles, angles_mean, angles_std, scales, scale_mean, scale_std):
     new_scales, new_dif_angles = [], []
     for i in range(len(matches)):
-        if dif_angles[i] < mean_angles + angles_std and dif_angles[i] > mean_angles - angles_std and scales[i] < mean_scale + scale_std and scales[i] > mean_angles - scale_std:
+        if dif_angles[i] < angles_mean + angles_std and dif_angles[i] > angles_mean - angles_std and scales[i] < scale_mean + scale_std and scales[i] > angles_mean - scale_std:
             new_scales.append(scales[i])
             new_dif_angles.append(dif_angles[i])
     return new_dif_angles, new_scales
