@@ -74,7 +74,7 @@ def main():
 
                 save(conn, cursor, tuple(origin_values))
                 plot_matches(result, SAVE_ONLY,
-                             "results/{}/{}_p1.png".format(case, pair))
+                             "results/{}/{}_{}_p1.png".format(case, pair, name))
 
                 print("Phase two: Calculates the transformation")
                 angles_mean = origin_values[4]
@@ -90,7 +90,7 @@ def main():
 
                 save(conn, cursor, tuple(values))
                 plot_matches(result, SAVE_ONLY,
-                             "results/{}/{}_p2.png".format(case, pair))
+                             "results/{}/{}_{}_p2.png".format(case, pair, name))
 
                 print("Phase three: Removes fake matches")
                 angles_mean = origin_values[4]
@@ -116,7 +116,7 @@ def main():
 
                 save(conn, cursor, tuple(values))
                 plot_matches(result, SAVE_ONLY,
-                             "results/{}/{}_p3.png".format(case, pair))
+                             "results/{}/{}_{}_p3.png".format(case, pair, name))
 
             del img1
             del img2
