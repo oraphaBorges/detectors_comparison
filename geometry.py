@@ -1,91 +1,92 @@
-import numpy
-from sympy import Point, Line
 import cv2
+import numpy as np
 
-# Finds the image's center
-def image_center(image):
-    return Point(image.shape[1] / 2, image.shape[0] / 2)
 
+def eucl_distance(p1, p2):
+    return np.sqrt(np.square(p2[0] - p1[0]) + np.square(p2[1] - p1[1]))
+
+
+# Returns the vector p1 -> p2
+def points_to_vec(p1, p2):
+    v = np.empty(shape=2)
+    v[0] = p2[0] - p1[0]
+    v[1] = p2[1] - p1[1]
+    return v
+
+# The mean of the coordinates
+# of the keypoints is considered
+# the center of the object
+def kps_center(kps):
+    mean = np.zeros(2)
+    for kp in kps:
+        mean[0] += kp.pt[0]
+        mean[1] += kp.pt[1]
+    mean[0] /= len(kps)
+    mean[1] /= len(kps)
+    return mean
 
 # Finds the angles between the horizontal axis
-# and the lines passing through the image center
-# and each keypoint
-def g_find_kp_angles(image, kps):
-    angles = []
-    center = image_center(image)
-    h_axis = Line(center, center.translate(center.x))
+# and the lines passing through the center of
+# the keypoints and each keypoint
+def find_kp_angles(image, center, kps):
+    angles = np.empty(shape=len(kps))
+    center_shifted = np.copy(center)
+    center_shifted[0] += center[0]
+    h_axis = points_to_vec(center, center_shifted)
+    i = 0
     for kp in kps:
-        p = Point(kp.pt[0], kp.pt[1])
-        kp_line = Line(center, p)
-        angles.append(float(h_axis.angle_between(kp_line)))
+        kp_vec = points_to_vec(center, kp.pt)
+        # cos(theta) = (u . v) / (|u| * |v|)
+        angles[i] = np.dot(h_axis, kp_vec) / \
+            (np.linalg.norm(h_axis) * np.linalg.norm(kp_vec))
+        angles[i] = np.rad2deg(np.arccos(angles[i]))
+        i += 1
     return angles
 
 
-def angles_dif(angles_img1, angles_img2, matches):
-    dif = []
+def angles_diff(angles_img1, angles_img2, matches):
+    diff = np.empty(shape=len(matches))
+    i = 0
     for match in matches:
-        dif.append(angles_img1[match.queryIdx] - angles_img2[match.trainIdx])
-
-    return dif
-
-
-def remove_fake_matches(matches, dif_angles, angles_mean, angles_std, scales, scale_mean, scale_std):
-    new_scales, new_dif_angles = [], []
-    for i in range(len(matches)):
-        if dif_angles[i] < angles_mean + angles_std and dif_angles[i] > angles_mean - angles_std and scales[i] < scale_mean + scale_std and scales[i] > angles_mean - scale_std:
-            new_scales.append(scales[i])
-            new_dif_angles.append(dif_angles[i])
-    return new_dif_angles, new_scales
+        diff[i] = angles_img1[match.queryIdx] - angles_img2[match.trainIdx]
+        i += 1
+    return diff
 
 
-# Finds the Key's points Angles
-def find_kp_angles(kp1, kp2, matches, center1, center2):
-    central_line = Line(center1, center2.translate(2 * center2.x))
-    angles = []
-    for match in matches:
-        p1 = Point(kp1[match.queryIdx].pt[0], kp1[match.queryIdx].pt[1])
-        p2 = Point(kp2[match.trainIdx].pt[0], kp2[match.trainIdx].pt[1])
-        match_line = Line(p1, p2.translate(2 * center2.x))
-        angles.append(float(central_line.angle_between(match_line)))
-    return angles
-
-
-def g_find_scale(image, kps):
-    scale = []
-    center = image_center(image)
+def find_kps_dist(center, kps):
+    scale = np.empty(shape=len(kps))
+    i = 0
     for kp in kps:
-        p = Point(kp.pt[0], kp.pt[1])
-        d = center.distance(p)
-        scale.append(d)
+        scale[i] = eucl_distance(center, kp.pt)
+        i += 1
     return scale
 
 
 # Finds the ratio of the keypoints scale between images
-def find_scale_ratios(img1, kp1, img2, kp2, matches):
-    ratios = []
-    scale1 = g_find_scale(img1, kp1)
-    scale2 = g_find_scale(img2, kp2)
+def kps_ratio(center1, kps1, center2, kps2, matches):
+    ratios = np.empty(shape=len(matches))
+    dists1 = find_kps_dist(center1, kps1)
+    dists2 = find_kps_dist(center2, kps2)
+    i = 0
     for match in matches:
-        # scale list preserves the ordering from keypoints list
-        d1 = scale1[match.queryIdx]
-        d2 = scale2[match.trainIdx]
-        ratios.append(float(d1 / d2))
+        # ratios list preserves the ordering from matches list
+        d1 = dists1[match.queryIdx]
+        d2 = dists2[match.trainIdx]
+        ratios[i] = d1 / d2
+        i += 1
     return ratios
 
 
-# Finds the Scale between images
-def find_scale(kp1, kp2, matches, center1, center2):
-    scale = []
-    for match in matches:
-        p1 = Point(kp1[match.queryIdx].pt[0], kp1[match.queryIdx].pt[1])
-        p2 = Point(kp2[match.trainIdx].pt[0], kp2[match.trainIdx].pt[1])
-        d1 = center1.distance(p1)
-        d2 = center2.distance(p2)
-        scale.append(float(d1 / d2))
-    return scale
+# def remove_fake_matches(matches, dif_angles, angles_mean, angles_std, scales, scale_mean, scale_std):
+#     new_scales, new_dif_angles = [], []
+#     for i in range(len(matches)):
+#         if dif_angles[i] < angles_mean + angles_std and dif_angles[i] > angles_mean - angles_std and scales[i] < scale_mean + scale_std and scales[i] > angles_mean - scale_std:
+#             new_scales.append(scales[i])
+#             new_dif_angles.append(dif_angles[i])
+#     return new_dif_angles, new_scales
 
 
-def affine_trans(img, angles, scale):
-    center = image_center(img)
-    m = cv2.getRotationMatrix2D((center.y, center.x), angles, scale)
-    return cv2.warpAffine(img, m, (img.shape[1], img.shape[0]))
+# def affine_trans(img, angles, scale):
+#     center = image_center(img)
+#     m = cv2.getRotationMatrix2D((center.y, center.x), angles, scale)
+#     return cv2.warpAffine(img, m, (img.shape[1], img.shape[0]))
