@@ -62,24 +62,22 @@ def find_kps_dist(center, kps):
     return scale
 
 
-# Finds the ratio of the keypoints scale between images
-def kps_ratio(center1, kps1, center2, kps2, matches):
-    ratios = np.empty(shape=len(matches))
-    dists1 = find_kps_dist(center1, kps1)
-    dists2 = find_kps_dist(center2, kps2)
+# Applies fn to all the pairs of matches
+def kps_fn(kps1, kps2, matches, fn):
+    result = np.empty(shape=len(matches))
     i = 0
     for match in matches:
-        # ratios list preserves the ordering from matches list
-        d1 = dists1[match.queryIdx]
-        d2 = dists2[match.trainIdx]
-        ratios[i] = d1 / d2
+        # result list preserves the ordering from matches list
+        d1 = kps1[match.queryIdx]
+        d2 = kps2[match.trainIdx]
+        result[i] = fn(d1, d2)
         i += 1
-    return ratios
+    return result
 
 
-# def remove_fake_matches(matches, dif_angles, angles_mean, angles_std, scales, scale_mean, scale_std):
-#     new_scales, new_dif_angles = [], []
-#     for i in range(len(matches)):
+# def remove_fake_matches(matches, kps, mean, std):
+#     i = 0
+#     for match in matches:
 #         if dif_angles[i] < angles_mean + angles_std and dif_angles[i] > angles_mean - angles_std and scales[i] < scale_mean + scale_std and scales[i] > angles_mean - scale_std:
 #             new_scales.append(scales[i])
 #             new_dif_angles.append(dif_angles[i])

@@ -8,7 +8,7 @@ from time import time, strftime
 from matplotlib import pyplot as plt
 
 NUM_OF_PAIRS = 1
-TABLE_NAME = "datas_{}".format(strftime("%y%m%d_%H%M%S"))
+TABLE_NAME = "stats_{}".format(strftime("%y%m%d_%H%M%S"))
 
 
 def main():
@@ -105,18 +105,26 @@ def process_pair(method, img1, img2):
     center1 = gmt.kps_center(kps1)
     center2 = gmt.kps_center(kps2)
 
+    kps_dist1 = gmt.find_kps_dist(center1, kps1)
+    kps_dist2 = gmt.find_kps_dist(center2, kps2)
+
+    kps_ratio = gmt.kps_fn(
+        kps_dist1, kps_dist2, matches, lambda a, b: a - b)
+    kps_ratio_mean = np.mean(kps_ratio)
+    kps_ratio_std = np.std(kps_ratio)
+
     angles1 = gmt.find_kp_angles(img1, center1, kps1)
     angles2 = gmt.find_kp_angles(img2, center2, kps2)
 
-    angles_diff = gmt.angles_diff(
-        angles1, angles2, matches)
+    angles1_mean = np.mean(angles1)
+    angles2_mean = np.mean(angles2)
+    angles_mean_diff = angles2_mean - angles1_mean
+    angles2 = np.subtract(angles2_mean, angles_mean_diff)
+
+    angles_diff = gmt.kps_fn(
+        angles1, angles2, matches, lambda a, b: a / b)
     angles_diff_mean = np.mean(angles_diff)
     angles_diff_std = np.std(angles_diff)
-
-    kps_ratio = gmt.kps_ratio(
-        center1, kps1, center2, kps2, matches)
-    kps_ratio_mean = np.mean(kps_ratio)
-    kps_ratio_std = np.std(kps_ratio)
 
     stats.append(angles_diff_mean)
     stats.append(angles_diff_std)
