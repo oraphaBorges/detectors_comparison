@@ -28,7 +28,7 @@ def kps_center(kps):
 # Finds the angles between the horizontal axis
 # and the lines passing through the center of
 # the keypoints and each keypoint
-def find_kp_angles(image, center, kps):
+def find_kp_angles(center, kps):
     angles = np.empty(shape=len(kps))
     center_shifted = np.copy(center)
     center_shifted[0] += center[0]
@@ -44,15 +44,6 @@ def find_kp_angles(image, center, kps):
     return angles
 
 
-def angles_diff(angles_img1, angles_img2, matches):
-    diff = np.empty(shape=len(matches))
-    i = 0
-    for match in matches:
-        diff[i] = angles_img1[match.queryIdx] - angles_img2[match.trainIdx]
-        i += 1
-    return diff
-
-
 def find_kps_dist(center, kps):
     scale = np.empty(shape=len(kps))
     i = 0
@@ -60,31 +51,3 @@ def find_kps_dist(center, kps):
         scale[i] = eucl_distance(center, kp.pt)
         i += 1
     return scale
-
-
-# Applies fn to all the pairs of matches
-def kps_fn(kps1, kps2, matches, fn):
-    result = np.empty(shape=len(matches))
-    i = 0
-    for match in matches:
-        # result list preserves the ordering from matches list
-        d1 = kps1[match.queryIdx]
-        d2 = kps2[match.trainIdx]
-        result[i] = fn(d1, d2)
-        i += 1
-    return result
-
-
-# def remove_fake_matches(matches, kps, mean, std):
-#     i = 0
-#     for match in matches:
-#         if dif_angles[i] < angles_mean + angles_std and dif_angles[i] > angles_mean - angles_std and scales[i] < scale_mean + scale_std and scales[i] > angles_mean - scale_std:
-#             new_scales.append(scales[i])
-#             new_dif_angles.append(dif_angles[i])
-#     return new_dif_angles, new_scales
-
-
-# def affine_trans(img, angles, scale):
-#     center = image_center(img)
-#     m = cv2.getRotationMatrix2D((center.y, center.x), angles, scale)
-#     return cv2.warpAffine(img, m, (img.shape[1], img.shape[0]))
