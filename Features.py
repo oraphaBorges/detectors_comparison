@@ -7,6 +7,7 @@ import geometry as gmt
 from time import time, strftime
 from matplotlib import pyplot as plt
 
+ARR_LEN = 10
 NUM_OF_PAIRS = 1
 TABLE_NAME = "stats_{}".format(strftime("%y%m%d_%H%M%S"))
 
@@ -101,8 +102,8 @@ def process_pair(method, img1, img2):
     stats = get_stats(method, img1, img2)
     kps1, kps2, matches = stats[0], stats[1], stats[2]
     stats[0], stats[1], stats[2] = len(kps1), len(kps2), len(matches)
-    print("kps1: {}".format(kps1[:10]))
-    print("kps2: {}".format(kps2[:10]))
+    print("kps1: {}".format(kps1[:ARR_LEN]))
+    print("kps2: {}".format(kps2[:ARR_LEN]))
 
     center1 = gmt.kps_center(kps1)
     center2 = gmt.kps_center(kps2)
@@ -113,27 +114,28 @@ def process_pair(method, img1, img2):
 
     kps_dist1 = gmt.find_kps_dist(center1, kps1)
     kps_dist2 = gmt.find_kps_dist(center2, kps2)
-    print("kps_dist1: {}".format(kps_dist1[:10]))
-    print("kps_dist2: {}".format(kps_dist2[:10]))
+    print("kps_dist1: {}".format(kps_dist1[:ARR_LEN]))
+    print("kps_dist2: {}".format(kps_dist2[:ARR_LEN]))
 
     kps_dist_ratio, kps_dist_ratio_mean, kps_dist_ratio_std = process_kps_feat(
         matches, kps_dist1, kps_dist2, lambda a, b: a / b)
-    print("kps_dist_ratio: {}".format(kps_dist_ratio[:10]))
+    print("kps_dist_ratio: {}".format(kps_dist_ratio[:ARR_LEN]))
     print("kps_dist_ratio_mean: {}".format(kps_dist_ratio_mean))
     print("kps_dist_ratio_std: {}".format(kps_dist_ratio_std))
 
-    kps_dist1, kps_dist2 = remove_fake_matches(
+    matches, kps_dist1, kps_dist2 = remove_fake_matches(
         matches, kps_dist1, kps_dist2, kps_dist_ratio,
         kps_dist_ratio_mean - kps_dist_ratio_std, kps_dist_ratio_mean + kps_dist_ratio_std)
-    print("final kps_dist1: {}".format(kps_dist1[:10]))
-    print("final kps_dist2: {}".format(kps_dist2[:10]))
+    print("new matches: {}".format(matches[:ARR_LEN]))
+    print("final kps_dist1: {}".format(kps_dist1[:ARR_LEN]))
+    print("final kps_dist2: {}".format(kps_dist2[:ARR_LEN]))
 
     # keypoints angle step
 
     kps_angles1 = gmt.find_kp_angles(center1, kps1)
     kps_angles2 = gmt.find_kp_angles(center2, kps2)
-    print("kps_angles1: {}".format(kps_angles1[:10]))
-    print("kps_angles2: {}".format(kps_angles2[:10]))
+    print("kps_angles1: {}".format(kps_angles1[:ARR_LEN]))
+    print("kps_angles2: {}".format(kps_angles2[:ARR_LEN]))
 
     kps_angles1_mean = np.mean(kps_angles1)
     kps_angles2_mean = np.mean(kps_angles2)
@@ -142,19 +144,20 @@ def process_pair(method, img1, img2):
     angles_mean_diff = kps_angles2_mean - kps_angles1_mean
     print("angles_mean_diff: {}".format(angles_mean_diff))
     kps_angles2 = np.subtract(kps_angles2, angles_mean_diff)
-    print("subtracted kps_angles2: {}".format(kps_angles2[:10]))
+    print("subtracted kps_angles2: {}".format(kps_angles2[:ARR_LEN]))
 
     kps_angles_diff, kps_angles_diff_mean, kps_angles_diff_std = process_kps_feat(
         matches, kps_angles1, kps_angles2, lambda a, b: a - b)
-    print("kps_angles_diff: {}".format(kps_angles_diff[:10]))
+    print("kps_angles_diff: {}".format(kps_angles_diff[:ARR_LEN]))
     print("kps_angles_diff_mean: {}".format(kps_angles_diff_mean))
     print("kps_angles_diff_std: {}".format(kps_angles_diff_std))
 
-    kps_angles1, kps_angles2 = remove_fake_matches(
+    matches, kps_angles1, kps_angles2 = remove_fake_matches(
         matches, kps_angles1, kps_angles2, kps_angles_diff,
         kps_angles_diff_mean - kps_angles_diff_std, kps_angles_diff_mean + kps_angles_diff_std)
-    print("final kps_angles1: {}".format(kps_angles1[:10]))
-    print("final kps_angles2: {}".format(kps_angles2[:10]))
+    print("final matches: {}".format(matches[:ARR_LEN]))
+    print("final kps_angles1: {}".format(kps_angles1[:ARR_LEN]))
+    print("final kps_angles2: {}".format(kps_angles2[:ARR_LEN]))
 
     # final stats recalculation to save on stats list
 
@@ -202,14 +205,16 @@ def process_kps_feat(matches, kps_feat1, kps_feat2, fn):
 # from center or angle from horizon.
 def remove_fake_matches(matches, kps_feat1, kps_feat2, kps_diff, lower_lim, upper_lim):
     i = 0
+    new_matches = np.empty(0, dtype=matches.dtype)
     new_kps_feat1 = np.empty(0, dtype=kps_feat1.dtype)
     new_kps_feat2 = np.empty(0, dtype=kps_feat2.dtype)
     for match in matches:
         if kps_diff[i] >= lower_lim and kps_diff[i] <= upper_lim:
+            np.append(new_matches, match)
             np.append(new_kps_feat1, kps_feat1[match.queryIdx])
             np.append(new_kps_feat2, kps_feat2[match.trainIdx])
         i += 1
-    return new_kps_feat1, new_kps_feat2
+    return new_matches, new_kps_feat1, new_kps_feat2
 
 
 def save_stats(conn, cursor, stats):
