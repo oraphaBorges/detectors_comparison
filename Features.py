@@ -63,7 +63,7 @@ def main():
             img1 = cv2.imread("photos/{}/{}a.jpg".format(case, pair), 0)
             img2 = cv2.imread("photos/{}/{}b.jpg".format(case, pair), 0)
             for name, method in methods.items():
-                print(name)
+                print("\n", name)
 
                 stats = process_pair(method, img1, img2)
                 stats.append(name)
@@ -102,8 +102,8 @@ def process_pair(method, img1, img2):
     stats = get_stats(method, img1, img2)
     kps1, kps2, matches = stats[0], stats[1], stats[2]
     stats[0], stats[1], stats[2] = len(kps1), len(kps2), len(matches)
-    print("kps1: {}".format(kps1[:ARR_LEN]))
-    print("kps2: {}".format(kps2[:ARR_LEN]))
+    # print("kps1: {}".format(kps1[:ARR_LEN]))
+    # print("kps2: {}".format(kps2[:ARR_LEN]))
 
     center1 = gmt.kps_center(kps1)
     center2 = gmt.kps_center(kps2)
@@ -126,7 +126,7 @@ def process_pair(method, img1, img2):
     matches, kps_dist1, kps_dist2 = remove_fake_matches(
         matches, kps_dist1, kps_dist2, kps_dist_ratio,
         kps_dist_ratio_mean - kps_dist_ratio_std, kps_dist_ratio_mean + kps_dist_ratio_std)
-    print("new matches: {}".format(matches[:ARR_LEN]))
+    # print("new matches: {}".format(matches[:ARR_LEN]))
     print("final kps_dist1: {}".format(kps_dist1[:ARR_LEN]))
     print("final kps_dist2: {}".format(kps_dist2[:ARR_LEN]))
 
@@ -155,7 +155,7 @@ def process_pair(method, img1, img2):
     matches, kps_angles1, kps_angles2 = remove_fake_matches(
         matches, kps_angles1, kps_angles2, kps_angles_diff,
         kps_angles_diff_mean - kps_angles_diff_std, kps_angles_diff_mean + kps_angles_diff_std)
-    print("final matches: {}".format(matches[:ARR_LEN]))
+    # print("final matches: {}".format(matches[:ARR_LEN]))
     print("final kps_angles1: {}".format(kps_angles1[:ARR_LEN]))
     print("final kps_angles2: {}".format(kps_angles2[:ARR_LEN]))
 
@@ -204,17 +204,19 @@ def process_kps_feat(matches, kps_feat1, kps_feat2, fn):
 # or statistic about them, like distance
 # from center or angle from horizon.
 def remove_fake_matches(matches, kps_feat1, kps_feat2, kps_diff, lower_lim, upper_lim):
-    i = 0
-    new_matches = np.empty(0, dtype=matches.dtype)
-    new_kps_feat1 = np.empty(0, dtype=kps_feat1.dtype)
-    new_kps_feat2 = np.empty(0, dtype=kps_feat2.dtype)
+    i = j = 0
+    new_matches = []
+    new_kps_feat1 = []
+    new_kps_feat2 = []
     for match in matches:
         if kps_diff[i] >= lower_lim and kps_diff[i] <= upper_lim:
-            np.append(new_matches, match)
-            np.append(new_kps_feat1, kps_feat1[match.queryIdx])
-            np.append(new_kps_feat2, kps_feat2[match.trainIdx])
+            match.queryIdx = match.trainIdx = j
+            new_matches.append(match)
+            new_kps_feat1.append(kps_feat1[match.queryIdx])
+            new_kps_feat2.append(kps_feat2[match.trainIdx])
+            j += 1
         i += 1
-    return new_matches, new_kps_feat1, new_kps_feat2
+    return np.array(new_matches), np.array(new_kps_feat1), np.array(new_kps_feat2)
 
 
 def save_stats(conn, cursor, stats):
