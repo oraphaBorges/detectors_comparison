@@ -9,7 +9,7 @@ from time import time, strftime
 from matplotlib import pyplot as plt
 
 ARR_LEN = 10
-NUM_OF_PAIRS = 1
+NUM_OF_PAIRS = 2
 TABLE_NAME = 'stats_{}'.format(strftime('%y%m%d_%H%M%S'))
 
 
@@ -34,7 +34,7 @@ def main():
     cases = [
         'Same Object, Same Scale',
         # 'Same Object, Different Scale',
-        # 'Different Object, Same Scale',
+        'Different Object, Same Scale',
         # 'Different Object, Different Scale'
     ]
 
@@ -97,21 +97,26 @@ def stats_eq(diffs, thresh=0.05):
 
 def write_histogram(path, xs,mean,std, title=None, xlabel=None, ylabel=None):
     frenquency = len(xs)//5
+    plt.cla()
     plt.hist(xs,frenquency, density=1)
     plt.title(title if title is not None else '')
     plt.xlabel(xlabel if xlabel is not None else '')
     plt.ylabel(ylabel if ylabel is not None else '')
     plt.grid(True)
 
+
     plt.axvline(mean-std,c='g',ls='--')
     plt.text(mean-std, 0, r'$\sigma^-$')
+
     plt.axvline(mean,c='r',ls='--')
     plt.text(mean,0, r'$\mu$')
+    plt.legend([r'$\sigma$ = %.4f' % std, r'$\mu$ = %.4f' % mean])
+
     plt.axvline(mean+std,c='g',ls='--')
     plt.text(mean+std,0, r'$\sigma^+$')
 
     plt.savefig(path)
-    plt.show()
+    # plt.show()
 
 def write_matches_img(path, img1, kps1, img2, kps2, matches):
     img_matches = cv2.drawMatches(
