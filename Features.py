@@ -59,18 +59,20 @@ def main():
     print(f'Test executed in {executeTimeF - executeTimeI} seconds')
 
 def process_pair(case, name, pair, iteration, img1, img2, matches_origin, kps1_origin, kps2_origin, std_amount = 1/2,thresh = 0.05):
+    print(f'initial length of matches: {len(matches_origin)}')
+
     matches, kps1, kps2, kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, removed_matches = remove_outliers(
         matches_origin, kps1_origin, kps2_origin, dist_step, std_amount)
 
     is_below_error = stats_eq(kps_feat_diff,thresh)
     below_error = ft.reduce(lambda x,z: x+1 if z==True else x,is_below_error,0)
 
-    print(f'keypoints below {thresh*100}% error: {below_error} of {len(is_below_error)} ({below_error/len(is_below_error)*100}%)')
+    print(f'matches below {thresh*100}% error: {below_error} of {len(is_below_error)} ({below_error/len(is_below_error)*100}%)')
     write_matches_img(f'results/matches/{case}_{name}_{pair}_{iteration}_dist.jpg',
         img1, kps1, img2, kps2, matches)
     write_histogram(f'results/matches/{case}_{name}_{pair}_{iteration}_dist.png', kps_feat_diff,kps_feat_diff_mean,kps_feat_diff_std,
         f'{case}, {name}, distance - Pair {pair}, i={iteration}','Distance ratio','Frequency')
-    print(f'remaining keypoints with {std_amount} std: {len(matches)/len(matches_origin)} %')
+    print(f'remaining matches with {std_amount} std: {len(matches)/len(matches_origin)} %')
     print('removed matches:')
     print_matches(removed_matches[:ARR_LEN], kps1_origin, kps2_origin)
 
@@ -80,12 +82,12 @@ def process_pair(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
     is_below_error = stats_eq(kps_feat_diff,thresh)
     below_error = ft.reduce(lambda x,z: x+1 if z==True else x,is_below_error,0)
 
-    print(f'keypoints below {thresh*100}% error: {below_error} of {len(is_below_error)} ({below_error/len(is_below_error)*100}%)')
+    print(f'matches below {thresh*100}% error: {below_error} of {len(is_below_error)} ({below_error/len(is_below_error)*100}%)')
     write_matches_img(f'results/matches/{case}_{name}_{pair}_{iteration}_angle.jpg',
         img1, kps1, img2, kps2, matches)
     write_histogram(f'results/matches/{case}_{name}_{pair}_{iteration}_angle.png', kps_feat_diff,kps_feat_diff_mean,kps_feat_diff_std,
         f'{case}, {name}, angle - Pair {pair}, i={iteration}','Angle ratio','Frequency')
-    print(f'remaining keypoints with {std_amount} std: {len(matches)/len(matches_origin)} %')
+    print(f'remaining matches with {std_amount} std: {len(matches)/len(matches_origin)} %')
     print('removed matches:')
     print_matches(removed_matches[:ARR_LEN], kps1_origin, kps2_origin)
 
@@ -164,6 +166,9 @@ def angle_step(matches, kps1, kps2):
     angles2_mean = np.mean(angles2)
     angles_mean_diff = angles2_mean - angles1_mean
     angles2 = np.subtract(angles2, angles_mean_diff)
+
+    gmt.norm_angles(angles1)
+    gmt.norm_angles(angles2)
 
     diff, diff_mean, diff_std = process_kps_feat(
         matches, angles1, angles2, op.truediv)

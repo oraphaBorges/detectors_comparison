@@ -40,6 +40,8 @@ def find_kp_angles(center, kps):
         angles[i] = np.dot(h_axis, kp_vec) / \
             (np.linalg.norm(h_axis) * np.linalg.norm(kp_vec))
         angles[i] = np.rad2deg(np.arccos(angles[i]))
+        if angles[i] > 180.0:
+            angles[i] = 360.0 - angles[i]
         i += 1
     return angles
 
@@ -51,3 +53,9 @@ def find_kps_dist(center, kps):
         scale[i] = eucl_distance(center, kp.pt)
         i += 1
     return scale
+
+def norm_angles(angles):
+    for i in range(len(angles)):
+        if angles[i] > 180.0:
+            angles[i] = 360.0 - angles[i]
+
