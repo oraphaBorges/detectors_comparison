@@ -49,30 +49,42 @@ def main():
 
                 (matches, kps1, kps2, _) = get_stats(method, img1, img2)
 
-                process_pair(case, name, pair, img1, img2, matches, kps1, kps2)
+                (matches, kps1, kps2) = process_pair(case, name, pair,1, img1, img2, matches, kps1, kps2)
                 print('\n--------------------\n')
-                # process_pair(case, name, pair, img1, img2, matches, kps1, kps2, 1.0)
+                process_pair(case, name, pair,2, img1, img2, matches, kps1, kps2, 1.0)
 
             del img1
             del img2
     executeTimeF = time()
     print(f'Test executed in {executeTimeF - executeTimeI} seconds')
 
-def process_pair(case, name, pair, img1, img2, matches_origin, kps1_origin, kps2_origin, std_amount = 1/2):
+def process_pair(case, name, pair, iteration, img1, img2, matches_origin, kps1_origin, kps2_origin, std_amount = 1/2,thresh = 0.05):
     matches, kps1, kps2, kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, removed_matches = remove_outliers(
         matches_origin, kps1_origin, kps2_origin, dist_step, std_amount)
-    write_matches_img(f'results/matches/{case}_{name}_{pair}_dist.jpg',
+
+    is_below_error = stats_eq(kps_feat_diff,thresh)
+    below_error = ft.reduce(lambda x,z: x+1 if z==True else x,is_below_error,0)
+
+    print(f'keypoints below {thresh*100}% error: {below_error} of {len(is_below_error)} ({below_error/len(is_below_error)*100}%)')
+    write_matches_img(f'results/matches/{case}_{name}_{pair}_{iteration}_dist.jpg',
         img1, kps1, img2, kps2, matches)
-    write_histogram(f'results/matches/{case}_{name}_{pair}_dist.png', kps_feat_diff)
+    write_histogram(f'results/matches/{case}_{name}_{pair}_{iteration}_dist.png', kps_feat_diff,kps_feat_diff_mean,kps_feat_diff_std,
+        f'{case}, {name}, distance - Pair {pair}, i={iteration}','Distance ratio','Frequency')
     print(f'remaining keypoints with {std_amount} std: {len(matches)/len(matches_origin)} %')
     print('removed matches:')
     print_matches(removed_matches[:ARR_LEN], kps1_origin, kps2_origin)
 
     matches, kps1, kps2, kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, removed_matches = remove_outliers(
         matches, kps1, kps2, angle_step, std_amount)
-    write_matches_img(f'results/matches/{case}_{name}_{pair}_angle.jpg',
+
+    is_below_error = stats_eq(kps_feat_diff,thresh)
+    below_error = ft.reduce(lambda x,z: x+1 if z==True else x,is_below_error,0)
+
+    print(f'keypoints below {thresh*100}% error: {below_error} of {len(is_below_error)} ({below_error/len(is_below_error)*100}%)')
+    write_matches_img(f'results/matches/{case}_{name}_{pair}_{iteration}_angle.jpg',
         img1, kps1, img2, kps2, matches)
-    write_histogram(f'results/matches/{case}_{name}_{pair}_angle.png', kps_feat_diff)
+    write_histogram(f'results/matches/{case}_{name}_{pair}_{iteration}_angle.png', kps_feat_diff,kps_feat_diff_mean,kps_feat_diff_std,
+        f'{case}, {name}, angle - Pair {pair}, i={iteration}','Angle ratio','Frequency')
     print(f'remaining keypoints with {std_amount} std: {len(matches)/len(matches_origin)} %')
     print('removed matches:')
     print_matches(removed_matches[:ARR_LEN], kps1_origin, kps2_origin)
@@ -81,14 +93,23 @@ def process_pair(case, name, pair, img1, img2, matches_origin, kps1_origin, kps2
 
 # thresh is in percentage
 def stats_eq(diffs, thresh=0.05):
-    return np.array(list(map(ft.partial(op.ge, thresh), diffs)))
+    return np.array(list(map(ft.partial(op.ge, 1 + thresh), diffs)))
 
-def write_histogram(path, xs, title=None, xlabel=None, ylabel=None):
-    plt.hist(xs, 50, density=1)
+def write_histogram(path, xs,mean,std, title=None, xlabel=None, ylabel=None):
+    frenquency = len(xs)//5
+    plt.hist(xs,frenquency, density=1)
     plt.title(title if title is not None else '')
     plt.xlabel(xlabel if xlabel is not None else '')
     plt.ylabel(ylabel if ylabel is not None else '')
     plt.grid(True)
+
+    plt.axvline(mean-std,c='g',ls='--')
+    plt.text(mean-std, 0, r'$\sigma^-$')
+    plt.axvline(mean,c='r',ls='--')
+    plt.text(mean,0, r'$\mu$')
+    plt.axvline(mean+std,c='g',ls='--')
+    plt.text(mean+std,0, r'$\sigma^+$')
+
     plt.savefig(path)
     plt.show()
 
@@ -124,7 +145,7 @@ def dist_step(matches, kps1, kps2):
     dist2 = gmt.find_kps_dist(center2, kps2)
 
     ratio, ratio_mean, ratio_std = process_kps_feat(
-        matches, dist1, dist2, lambda a, b: a / b)
+        matches, dist1, dist2, op.truediv)
     return dist1, dist2, ratio, ratio_mean, ratio_std
 
 def angle_step(matches, kps1, kps2):
@@ -140,19 +161,25 @@ def angle_step(matches, kps1, kps2):
     angles2 = np.subtract(angles2, angles_mean_diff)
 
     diff, diff_mean, diff_std = process_kps_feat(
-        matches, angles1, angles2, lambda a, b: a - b)
+        matches, angles1, angles2, op.truediv)
     return angles1, angles2, diff, diff_mean, diff_std
 
 def remove_outliers(matches_origin, kps1_origin, kps2_origin, step_fn, std_amount):
     print(f'\nremove outliers with {step_fn.__name__}')
     (kps_feat1, kps_feat2, kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std) = step_fn(
         matches_origin, kps1_origin, kps2_origin)
-    print(f'mean: {kps_feat_diff_mean}')
-    print(f'std: {kps_feat_diff_std}')
+    print(f'mean before: {kps_feat_diff_mean}')
+    print(f'std before: {kps_feat_diff_std}')
+
     matches, kps1, kps2, kps_feat1, kps_feat2, removed_matches = remove_fake_matches(
         matches_origin, kps1_origin, kps2_origin, kps_feat1, kps_feat2, kps_feat_diff,
         kps_feat_diff_mean - (kps_feat_diff_std * std_amount),
         kps_feat_diff_mean + (kps_feat_diff_std * std_amount))
+
+    (kps_feat1, kps_feat2, kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std) = step_fn(
+        matches, kps1, kps2)
+    print(f'mean after: {kps_feat_diff_mean}')
+    print(f'std after: {kps_feat_diff_std}')
     return matches, kps1, kps2, kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, removed_matches
 
 # Applies fn to all the pairs of matches
