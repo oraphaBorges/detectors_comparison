@@ -53,8 +53,8 @@ def main():
         (matches, kps1, kps2, _) = get_stats(method, img1, img2)
 
         (matches, kps1, kps2) = process_pair(case, name, pair, 1, img1, img2, matches, kps1, kps2)
-        # print('\n=====\nRunning 2nd iteration')
-        # process_pair(case, name, pair, 2, img1, img2, matches, kps1, kps2, 1.0)
+        print('\n=====\nRunning 2nd iteration')
+        process_pair(case, name, pair, 2, img1, img2, matches, kps1, kps2, 1.0)
 
       del img1
       del img2
