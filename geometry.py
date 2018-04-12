@@ -62,5 +62,7 @@ def find_kps_dist(center, kps):
 
 def norm_angles(angles):
     for i in range(len(angles)):
+        # if angles[i] < 0.0:
+            # angles[i] = -angles[i]
         if angles[i] > 180.0:
             angles[i] = 360.0 - angles[i]

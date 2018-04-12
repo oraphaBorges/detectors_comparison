@@ -65,10 +65,10 @@ def main():
 def process_pair(case, name, pair, iteration, img1, img2, matches_origin, kps1_origin, kps2_origin, std_amount=0.5, thresh=0.05):
   (matches, kps1, kps2) = process_step(case, name, pair, iteration, img1, img2,
                                        matches_origin, kps1_origin, kps2_origin, dist_step, std_amount, thresh)
-  return process_step(case, name, pair, iteration, img1, img2, matches, kps1, kps2, angle_step, std_amount, thresh)
+  return process_step(case, name, pair, iteration, img1, img2, matches, kps1, kps2, angle_step, std_amount, thresh, True)
 
 
-def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount, thresh):
+def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount, thresh, use_mean_denominator=False):
   print(f'\nremoving outliers with {step_fn.__name__}')
   print(f'initial length of matches: {len(matches_origin)}')
 
@@ -101,7 +101,7 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
       f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std,
       f'{case}, {name}, {step_fn.__name__}, img pair {pair}, iteration {iteration}', f'{step_fn.__name__} ratio', 'Frequency')
 
-  is_below_error = stats_eq(kps_feat_diff, thresh)
+  is_below_error = stats_eq(kps_feat_diff, thresh, kps_feat_diff_mean if use_mean_denominator else None)
   amount_below_error = ft.reduce(op.add, is_below_error, 0)
 
   print(
@@ -110,14 +110,18 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
   return matches, kps1, kps2
 
 
-def stats_eq(diffs, thresh=0.05):
-  return np.array(list(map(ft.partial(op.ge, 1 + thresh), diffs)))
+def stats_eq(stats, thresh=0.05, denominator=None):
+  _stats = stats
+  if denominator is not None:
+    _stats = np.array(list(map(ft.partial(op.mul, 1 / denominator), stats)))
+  return np.array(list(map(ft.partial(op.ge, 1 + thresh), _stats)))
 
 
 def write_histogram(path, xs, mean, std, title=None, xlabel=None, ylabel=None):
   frenquency = len(xs) // 5
   plt.cla()
-  plt.hist(xs, frenquency, range=(mean - (3 * std), mean + (3 * std)), density=1)
+  plt.hist(xs, frenquency, density=1)
+  # plt.hist(xs, frenquency, range=(mean - (3 * std), mean + (3 * std)), density=1)
   plt.title(title if title is not None else '')
   plt.xlabel(xlabel if xlabel is not None else '')
   plt.ylabel(ylabel if ylabel is not None else '')
@@ -192,7 +196,7 @@ def angle_step(matches, kps1, kps2):
   gmt.norm_angles(angles2)
 
   diff, diff_mean, diff_std = process_kps_feat(
-      matches, angles1, angles2, op.truediv)
+      matches, angles1, angles2, op.sub)
   return angles1, angles2, diff, diff_mean, diff_std
 
 
@@ -200,11 +204,16 @@ def angle_step(matches, kps1, kps2):
 def kps_fn(matches, kps_feat1, kps_feat2, fn):
   result = np.empty(shape=len(matches))
   i = 0
+  diff_ceil = 10.0
+  if fn == op.truediv:
+    print(f'ratios > {diff_ceil}?')
   for match in matches:
     # result list preserves the ordering from matches list
     q = kps_feat1[match.queryIdx]
     t = kps_feat2[match.trainIdx]
     result[i] = fn(q, t)
+    if fn == op.truediv and result[i] > diff_ceil:
+        print(f'    {q} / {t} = {result[i]} @ index {i}')
     i += 1
   return result
 
