@@ -6,25 +6,22 @@ def eucl_distance(p1, p2):
     return np.sqrt(np.square(p2[0] - p1[0]) + np.square(p2[1] - p1[1]))
 
 
-# Returns the vector p1 -> p2
 def points_to_vec(p1, p2):
+    """ Returns the vector p1 -> p2. """
     v = np.empty(shape=2)
     v[0] = p2[0] - p1[0]
     v[1] = p2[1] - p1[1]
     return v
 
 
-def vecs_angle(v1, v2):
-    # cos(theta) = (u . v) / (|u| * |v|)
-    cos_ang = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+def vecs_angle(u, v):
+    """ Computes cos(theta) = (u . v) / (|u| * |v|). """
+    cos_ang = np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v))
     return np.arccos(cos_ang)
-
-# The mean of the coordinates
-# of the keypoints is considered
-# the center of the object
 
 
 def kps_center(kps):
+    """ Estimates the center of an image with the mean of the kps. """
     mean = np.zeros(2)
     for kp in kps:
         mean[0] += kp.pt[0]
@@ -33,22 +30,11 @@ def kps_center(kps):
     mean[1] /= len(kps)
     return mean
 
-# Finds the angles between the horizontal axis
-# and the lines passing through the center of
-# the keypoints and each keypoint
 
-
-def find_kp_angles(center, kps):
-    angles = np.empty(shape=len(kps))
-    center_shifted = np.copy(center)
-    center_shifted[0] += center[0]
-    h_axis = points_to_vec(center, center_shifted)
-    i = 0
-    for kp in kps:
-        kp_vec = points_to_vec(center, kp.pt)
-        angles[i] = np.rad2deg(vecs_angle(h_axis, kp_vec))
-        i += 1
-    return angles  # maintains original kps order
+def get_kp_angle(kp1, kp2, center1, center2):
+    vecq = points_to_vec(center1, kp1.pt)
+    vect = points_to_vec(center2, kp2.pt)
+    return np.rad2deg(vecs_angle(vecq, vect))
 
 
 def find_kps_dist(center, kps):
