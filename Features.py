@@ -17,14 +17,14 @@ def main():
     executeTimeI = time()
 
     # Initiate detectors
-    ORB = cv2.ORB.create()
+    ORB = cv2.ORB.create(nfeatures=5000)
     AKAZE = cv2.AKAZE.create()
     BRISK = cv2.BRISK.create()
     SIFT = cv2.xfeatures2d.SIFT_create()
     SURF = cv2.xfeatures2d.SURF_create()
 
     methods = {
-        # 'ORB': ORB,
+        'ORB': ORB,
         'AKAZE': AKAZE,
         'BRISK': BRISK,
         # 'SIFT': SIFT,
@@ -34,7 +34,7 @@ def main():
     cases = [
         'Same Object, Same Scale',
         # 'Same Object, Different Scale',
-        # 'Different Object, Same Scale',
+        'Different Object, Same Scale',
         # 'Different Object, Different Scale'
     ]
 
