@@ -34,7 +34,11 @@ def kps_center(kps):
 def get_kp_angle(kp1, kp2, center1, center2):
     vecq = points_to_vec(center1, kp1.pt)
     vect = points_to_vec(center2, kp2.pt)
-    return np.rad2deg(vecs_angle(vecq, vect))
+    rtn = np.rad2deg(vecs_angle(vecq, vect))
+    diff = 135
+    if rtn > diff:
+        print(f'angle between:\n\t{center1}->{kp1.pt}={vecq} and\n\t{center2}->{kp2.pt}={vect}\n\t= {rtn} degrees')
+    return rtn
 
 
 def find_kps_dist(center, kps):

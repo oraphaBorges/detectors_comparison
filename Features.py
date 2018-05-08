@@ -10,7 +10,8 @@ from matplotlib import pyplot as plt
 
 ARR_LEN = 10
 NUM_OF_PAIRS = 1
-TABLE_NAME = 'stats_{}'.format(strftime('%y%m%d_%H%M%S'))
+
+f = None
 
 
 def main():
@@ -25,8 +26,8 @@ def main():
 
     methods = {
         'ORB': ORB,
-        'AKAZE': AKAZE,
-        'BRISK': BRISK,
+        # 'AKAZE': AKAZE,
+        # 'BRISK': BRISK,
         # 'SIFT': SIFT,
         # 'SURF': SURF
     }
@@ -34,7 +35,7 @@ def main():
     cases = [
         'Same Object, Same Scale',
         # 'Same Object, Different Scale',
-        'Different Object, Same Scale',
+        # 'Different Object, Same Scale',
         # 'Different Object, Different Scale'
     ]
 
@@ -80,20 +81,31 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
         matches_origin, kps1_origin, kps2_origin)
     kps_feat_min = np.min(kps_feat_diff)
     kps_feat_max = np.max(kps_feat_diff)
-    print(f'min value before removal: {kps_feat_min}')
-    print(f'max value before removal: {kps_feat_max}')
-    print(f'mean before removal: {kps_feat_diff_mean}')
-    print(f'std before removal: {kps_feat_diff_std}')
-    write_histogram(
-        f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}_origin{filename_diff}.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
-        f'{case}, {name}, {step_fn.__name__}, img pair {pair}, iteration {iteration} {filename_diff}', f'Original {step_fn.__name__} ratio', 'Frequency')
+    is_below_error = stats_eq(
+        kps_feat_diff, thresh, kps_feat_diff_mean if use_mean_denominator else None)
+    amount_below_error = ft.reduce(op.add, is_below_error, 0)
 
     matches, kps1, kps2, removed_matches = remove_fake_matches(
         matches_origin, kps1_origin, kps2_origin, kps_feat_diff,
         kps_feat_diff_mean - (kps_feat_diff_std * std_amount),
         kps_feat_diff_mean + (kps_feat_diff_std * std_amount))
-    print(
-        f'remaining matches after removal with {std_amount} std: {len(matches)} of {len(matches_origin)} ({len(matches)/len(matches_origin)})')
+
+    # Print only on the first time that we call this method
+    if use_mean_denominator == False and filename_diff == '':
+        print(f'min value before removal: {kps_feat_min}')
+        print(f'max value before removal: {kps_feat_max}')
+        print(f'mean before removal: {kps_feat_diff_mean}')
+        print(f'std before removal: {kps_feat_diff_std}')
+        print(f'remaining matches after removal with {std_amount} std: {len(matches)} of {len(matches_origin)} ({len(matches)/len(matches_origin)})')
+
+        print(case, name, pair, iteration, 'Initial', kps_feat_min, kps_feat_max, kps_feat_diff_mean,
+              kps_feat_diff_std, len(matches_origin), len(matches), amount_below_error, file=f, sep=',')
+
+    write_histogram(
+        f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}_origin{filename_diff}.png',
+        kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
+        f'{case}, {name}, {step_fn.__name__}, img pair {pair}, iteration {iteration} {filename_diff}', f'Original {step_fn.__name__} ratio', 'Frequency')
+
     write_matches_img(f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}{filename_diff}.jpg',
                       img1, kps1, img2, kps2, matches[:ARR_LEN])
 
@@ -101,20 +113,28 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
         matches, kps1, kps2)
     kps_feat_min = np.min(kps_feat_diff)
     kps_feat_max = np.max(kps_feat_diff)
-    print(f'min value after removal: {kps_feat_min}')
-    print(f'max value after removal: {kps_feat_max}')
-    print(f'mean after removal: {kps_feat_diff_mean}')
-    print(f'std after removal: {kps_feat_diff_std}')
-    write_histogram(
-        f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}{filename_diff}.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
-        f'{case}, {name}, {step_fn.__name__}, img pair {pair}, iteration {iteration} {filename_diff}', f'{step_fn.__name__} ratio', 'Frequency')
-
     is_below_error = stats_eq(
         kps_feat_diff, thresh, kps_feat_diff_mean if use_mean_denominator else None)
     amount_below_error = ft.reduce(op.add, is_below_error, 0)
 
-    print(
-        f'matches below {thresh} error: {amount_below_error} of {len(is_below_error)} ({amount_below_error/len(is_below_error)})')
+    print(f'min value after removal: {kps_feat_min}')
+    print(f'max value after removal: {kps_feat_max}')
+    print(f'mean after removal: {kps_feat_diff_mean}')
+    print(f'std after removal: {kps_feat_diff_std}')
+    print(f'matches below {thresh} error: {amount_below_error} of {len(is_below_error)} ({amount_below_error/len(is_below_error)})')
+
+    status = 'Dist 1'
+    if filename_diff != '':
+        status = 'Dist 2'
+    elif use_mean_denominator == True:
+        status = 'Angles'
+    print(case, name, pair, iteration, status, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
+          kps_feat_diff_std, len(matches_origin), len(matches), amount_below_error, file=f, sep=',')
+
+    write_histogram(
+        f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}{filename_diff}.png',
+        kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
+        f'{case}, {name}, {step_fn.__name__}, img pair {pair}, iteration {iteration} {filename_diff}', f'{step_fn.__name__} ratio', 'Frequency')
 
     return matches, kps1, kps2
 
@@ -251,4 +271,8 @@ def remove_fake_matches(matches, kps1, kps2, kps_diff, lower_lim, upper_lim):
 
 
 if(__name__ == '__main__'):
-    main()
+    f = open('out.csv', 'w')
+    try:
+        main()
+    finally:
+        f.close()
