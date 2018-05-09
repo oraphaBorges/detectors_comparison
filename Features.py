@@ -1,6 +1,7 @@
 import cv2
 import pdb
 import sys
+import sqlite3
 import numpy as np
 import operator as op
 import functools as ft
@@ -9,9 +10,11 @@ from time import time, strftime
 from matplotlib import pyplot as plt
 
 ARR_LEN = 10
-NUM_OF_PAIRS = 1
+NUM_OF_PAIRS = 10
+TABLE_NAME = f'stats_{strftime("%y%m%d_%H%M%S")}'
 
-f = None
+conn = None
+cursor = None
 
 
 def main():
@@ -26,17 +29,17 @@ def main():
 
     methods = {
         'ORB': ORB,
-        # 'AKAZE': AKAZE,
-        # 'BRISK': BRISK,
-        # 'SIFT': SIFT,
-        # 'SURF': SURF
+        'AKAZE': AKAZE,
+        'BRISK': BRISK,
+        'SIFT': SIFT,
+        'SURF': SURF
     }
 
     cases = [
         'Same Object, Same Scale',
-        # 'Same Object, Different Scale',
-        # 'Different Object, Same Scale',
-        # 'Different Object, Different Scale'
+        'Same Object, Different Scale',
+        'Different Object, Same Scale',
+        'Different Object, Different Scale'
     ]
 
     for case in cases:
@@ -62,7 +65,7 @@ def main():
             del img1
             del img2
     executeTimeF = time()
-    print(f'Test executed in {executeTimeF - executeTimeI} seconds')
+    print(f'\nTest executed in {executeTimeF - executeTimeI} seconds')
 
 
 def process_pair(case, name, pair, iteration, img1, img2, matches_origin, kps1_origin, kps2_origin, std_amount=0.5, thresh=0.05):
@@ -75,7 +78,6 @@ def process_pair(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
 
 def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount, thresh, use_mean_denominator=False, filename_diff=''):
     print(f'\nremoving outliers with {step_fn.__name__}')
-    print(f'initial length of matches: {len(matches_origin)}')
 
     (kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std) = step_fn(
         matches_origin, kps1_origin, kps2_origin)
@@ -95,11 +97,10 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
         print(f'min value before removal: {kps_feat_min}')
         print(f'max value before removal: {kps_feat_max}')
         print(f'mean before removal: {kps_feat_diff_mean}')
-        print(f'std before removal: {kps_feat_diff_std}')
-        print(f'remaining matches after removal with {std_amount} std: {len(matches)} of {len(matches_origin)} ({len(matches)/len(matches_origin)})')
+        print(f'std before removal: {kps_feat_diff_std}\n')
 
-        print(case, name, pair, iteration, 'Initial', kps_feat_min, kps_feat_max, kps_feat_diff_mean,
-              kps_feat_diff_std, len(matches_origin), len(matches), amount_below_error, file=f, sep=',')
+        insert_and_commit((case, name, pair, iteration, 'Initial', kps_feat_min, kps_feat_max, kps_feat_diff_mean,
+                           kps_feat_diff_std, len(matches_origin), len(matches), float(amount_below_error)))
 
     write_histogram(
         f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}_origin{filename_diff}.png',
@@ -121,15 +122,18 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
     print(f'max value after removal: {kps_feat_max}')
     print(f'mean after removal: {kps_feat_diff_mean}')
     print(f'std after removal: {kps_feat_diff_std}')
-    print(f'matches below {thresh} error: {amount_below_error} of {len(is_below_error)} ({amount_below_error/len(is_below_error)})')
+    print(
+        f'remaining matches after removal with {std_amount} std: {len(matches)} of {len(matches_origin)} ({len(matches)/len(matches_origin)})')
+    print(
+        f'matches below {thresh} error: {amount_below_error} of {len(is_below_error)} ({amount_below_error/len(is_below_error)})')
 
     status = 'Dist 1'
     if filename_diff != '':
         status = 'Dist 2'
     elif use_mean_denominator == True:
         status = 'Angles'
-    print(case, name, pair, iteration, status, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
-          kps_feat_diff_std, len(matches_origin), len(matches), amount_below_error, file=f, sep=',')
+    insert_and_commit((case, name, pair, iteration, status, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
+                       kps_feat_diff_std, len(matches_origin), len(matches), float(amount_below_error)))
 
     write_histogram(
         f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}{filename_diff}.png',
@@ -270,9 +274,35 @@ def remove_fake_matches(matches, kps1, kps2, kps_diff, lower_lim, upper_lim):
     return np.array(new_matches), np.array(new_kps1), np.array(new_kps2), np.array(removed_matches)
 
 
+def insert_and_commit(values):
+    cursor.execute(
+        """INSERT INTO {} (kase, name, pair, iteration, status, kps_feat_min, kps_feat_max, kps_feat_diff_mean, kps_feat_diff_std, matches_origin, matches, amount_below_error)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""".format(TABLE_NAME), values)
+    conn.commit()
+
+
 if(__name__ == '__main__'):
-    f = open('out.csv', 'w')
+    conn = sqlite3.connect("db.sqlite3")
+    cursor = conn.cursor()
     try:
+        cursor.execute(
+            f"""
+            create table {TABLE_NAME} (
+                kase text,
+                name text,
+                pair number,
+                iteration number,
+                status text,
+                kps_feat_min number,
+                kps_feat_max number,
+                kps_feat_diff_mean number,
+                kps_feat_diff_std number,
+                matches_origin number,
+                matches number,
+                amount_below_error number
+            );
+            """
+        )
         main()
     finally:
-        f.close()
+        conn.close()

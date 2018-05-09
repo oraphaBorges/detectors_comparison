@@ -2,6 +2,7 @@
 *.png
 *.db
 *.csv
+*.sqlite3
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
