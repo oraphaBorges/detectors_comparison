@@ -79,11 +79,6 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
     kps_feat_min = np.min(kps_feat_diff)
     kps_feat_max = np.max(kps_feat_diff)
 
-    matches, kps1, kps2, removed_matches = remove_fake_matches(
-        matches_origin, kps1_origin, kps2_origin, kps_feat_diff,
-        kps_feat_diff_mean - (kps_feat_diff_std * std_amount),
-        kps_feat_diff_mean + (kps_feat_diff_std * std_amount))
-
     # Print only on the first time that we call this method
     if iteration == 1:
         amount_below_5 = amount_stats_within(kps_feat_diff, 0.05, kps_feat_diff_mean if use_mean_denominator else None)
@@ -104,8 +99,9 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
               f' ({amount_below_20/len(kps_feat_diff)})')
 
         # `ratio >= 0.5` means we believe its the same object
-        insert_and_commit((case, name, pair, iteration, 'Initial', kps_feat_min, kps_feat_max, kps_feat_diff_mean,
-                           kps_feat_diff_std, len(matches_origin), len(matches),
+        # iteration 0 means we didn't remove anything yet
+        insert_and_commit((case, name, pair, 0, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
+                           kps_feat_diff_std, len(matches_origin), None,
                            float(amount_below_5), float(amount_below_10), float(amount_below_20), int(ratio5 >= 0.5)))
 
     write_histogram(
@@ -114,8 +110,14 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
         title=f'{case}, {name}, {step_fn.__name__}, pair {pair}, iter {iteration}, original',
         xlabel=f'{step_fn.__name__}', ylabel='Frequency')
 
-    write_matches_img(f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}_iter{iteration}_matches.png',
-                      img1, kps1, img2, kps2, matches[:ARR_LEN])
+    write_matches_img(f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}'
+                      f'_iter{iteration}_original_matches.png',
+                      img1, kps1_origin, img2, kps2_origin, matches_origin[:ARR_LEN])
+
+    matches, kps1, kps2, removed_matches = remove_fake_matches(
+        matches_origin, kps1_origin, kps2_origin, kps_feat_diff,
+        kps_feat_diff_mean - (kps_feat_diff_std * std_amount),
+        kps_feat_diff_mean + (kps_feat_diff_std * std_amount))
 
     kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches, kps1, kps2)
     kps_feat_min = np.min(kps_feat_diff)
