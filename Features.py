@@ -8,32 +8,32 @@ from time import time, strftime
 from matplotlib import pyplot as plt
 
 ARR_LEN = 10
-NUM_OF_PAIRS = 1
+NUM_OF_PAIRS = 10
 TABLE_NAME = f'stats_{strftime("%y%m%d_%H%M%S")}'
 
 
 def main():
     execute_time_i = time()
 
-    # ORB = cv2.ORB.create(nfeatures=5000)
-    AKAZE = cv2.AKAZE.create()
-    BRISK = cv2.BRISK.create()
-    SIFT = cv2.xfeatures2d.SIFT_create()
-    SURF = cv2.xfeatures2d.SURF_create()
+    orb = cv2.ORB.create(nfeatures=5000)
+    akaze = cv2.AKAZE.create()
+    brisk = cv2.BRISK.create()
+    sift = cv2.xfeatures2d.SIFT_create()
+    surf = cv2.xfeatures2d.SURF_create()
 
     methods = {
-        # 'ORB': ORB,
-        'AKAZE': AKAZE,
-        # 'BRISK': BRISK,
-        # 'SIFT': SIFT,
-        # 'SURF': SURF
+        'ORB': orb,
+        'AKAZE': akaze,
+        'BRISK': brisk,
+        'SIFT': sift,
+        'SURF': surf
     }
 
     cases = [
         'Same Object, Same Scale',
-        # 'Same Object, Different Scale',
+        'Same Object, Different Scale',
         'Different Object, Same Scale',
-        # 'Different Object, Different Scale'
+        'Different Object, Different Scale'
     ]
 
     for case in cases:
@@ -173,7 +173,7 @@ def stats_within(stats, thresh=0.05, denominator=None):
     return np.array(list(map(ft.partial(op.ge, 1 + thresh), _stats)))
 
 
-def write_histogram(path, xs, mean, std, min, max, title=None, xlabel=None, ylabel=None):
+def write_histogram(path, xs, mean, std, minimum, maximum, title=None, xlabel=None, ylabel=None):
     frequency = len(xs) // 5
     plt.cla()
     plt.hist(xs, frequency, density=1, color='xkcd:grey')
@@ -183,14 +183,14 @@ def write_histogram(path, xs, mean, std, min, max, title=None, xlabel=None, ylab
     plt.ylabel(ylabel if ylabel is not None else '')
     plt.grid(True)
 
-    line_min = plt.axvline(min, c='xkcd:red', ls='-')
+    line_min = plt.axvline(minimum, c='xkcd:red', ls='-')
     line_std = plt.axvline(mean - std, c='xkcd:purple', ls='--')
     plt.axvline(mean + std, c='xkcd:purple', ls='--')
     line_mean = plt.axvline(mean, c='xkcd:blue', ls='--')
-    line_max = plt.axvline(max, c='xkcd:red', ls='-')
+    line_max = plt.axvline(maximum, c='xkcd:red', ls='-')
 
     plt.legend((line_min, line_mean, line_std, line_max),
-               ('min = %.4f' % min, r'$\mu$ = %.4f' % mean, r'$\sigma$ = %.4f' % std, 'max = %.4f' % max))
+               ('min = %.4f' % minimum, r'$\mu$ = %.4f' % mean, r'$\sigma$ = %.4f' % std, 'max = %.4f' % maximum))
 
     plt.savefig(path)
     # plt.show()
@@ -204,16 +204,16 @@ def write_matches_img(path, img1, kps1, img2, kps2, matches):
 
 
 def get_stats(method, img1, img2):
-    timeI = time()
+    time_i = time()
     kps1, des1 = method.detectAndCompute(img1, None)
     kps2, des2 = method.detectAndCompute(img2, None)
 
     # create BFMatcher object and
     # match descriptors (query, train)
     matches = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True).match(des1, des2)
-    timeF = time()
+    time_f = time()
 
-    return np.array(matches), np.array(kps1), np.array(kps2), timeF - timeI
+    return np.array(matches), np.array(kps1), np.array(kps2), time_f - time_i
 
 
 def print_matches(matches, kps1, kps2):
