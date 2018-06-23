@@ -8,7 +8,7 @@ from time import time, strftime
 from matplotlib import pyplot as plt
 
 ARR_LEN = 10
-NUM_OF_PAIRS = 10
+NUM_OF_PAIRS = 1
 TABLE_NAME = f'stats_{strftime("%y%m%d_%H%M%S")}'
 
 
@@ -18,22 +18,21 @@ def main():
     orb = cv2.ORB.create(nfeatures=5000)
     akaze = cv2.AKAZE.create()
     brisk = cv2.BRISK.create()
-    sift = cv2.xfeatures2d.SIFT_create()
-    surf = cv2.xfeatures2d.SURF_create()
+    # sift = cv2.xfeatures2d.SIFT_create()
+    # surf = cv2.xfeatures2d.SURF_create()
 
     methods = {
         'ORB': orb,
-        'AKAZE': akaze,
-        'BRISK': brisk,
-        'SIFT': sift,
-        'SURF': surf
+        # 'AKAZE': akaze,
+        # 'BRISK': brisk,
+        # 'SIFT': sift,
+        # 'SURF': surf
     }
 
     cases = [
+        'Different Object',
         'Same Object, Same Scale',
-        'Same Object, Different Scale',
-        'Different Object, Same Scale',
-        'Different Object, Different Scale'
+        'Same Object, Different Scale'
     ]
 
     for case in cases:
@@ -53,17 +52,15 @@ def main():
 
                 matches_origin, kps1_origin, kps2_origin, _ = get_stats(method, img1, img2)
 
-                # run dist step twice without overwriting original stats
-                matches, kps1, kps2 = process_step(case, name, pair, 1, img1, img2,
-                                                   matches_origin, kps1_origin, kps2_origin, dist_step, 1 / 2)
-                process_step(case, name, pair, 2, img1, img2, matches, kps1, kps2, dist_step, 1)
+                # write_matches_img(f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}'
+                #                   f'_iter{iteration}_original_matches.png',
+                #                   img1, kps1_origin, img2, kps2_origin, matches_origin[:ARR_LEN])
 
-                # run angle step twice without overwriting original stats
-                matches, kps1, kps2 = process_step(case, name, pair, 1, img1, img2,
-                                                   matches_origin, kps1_origin, kps2_origin, angle_step, 1 / 2,
-                                                   use_mean_denominator=True)
-                process_step(case, name, pair, 2, img1, img2, matches, kps1, kps2, angle_step, 1,
-                             use_mean_denominator=True)
+                matches, kps1, kps2 = process_step(case, name, pair, 1,
+                                                   matches_origin, kps1_origin, kps2_origin, dist_step, 1)
+                matches, kps1, kps2 = process_step(case, name, pair, 2,
+                                                   matches, kps1, kps2, angle_step, 1, use_mean_denominator=True)
+                process_step(case, name, pair, 3, matches, kps1, kps2, dist_step, 1)
 
             del img1
             del img2
@@ -71,7 +68,7 @@ def main():
     print(f'\nTest executed in {execute_time_f - execute_time_i} seconds')
 
 
-def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount,
+def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount,
                  use_mean_denominator=False):
     print(f'\nremoving outliers with {step_fn.__name__}, iteration {iteration}')
 
@@ -80,39 +77,32 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
     kps_feat_max = np.max(kps_feat_diff)
 
     # Print only on the first time that we call this method
-    if iteration == 1:
-        amount_below_5 = amount_stats_within(kps_feat_diff, 0.05, kps_feat_diff_mean if use_mean_denominator else None)
-        amount_below_10 = amount_stats_within(kps_feat_diff, 0.1, kps_feat_diff_mean if use_mean_denominator else None)
-        amount_below_20 = amount_stats_within(kps_feat_diff, 0.2, kps_feat_diff_mean if use_mean_denominator else None)
-        # len(kps_feat_diff) == len(matches)
-        ratio5 = amount_below_5 / len(kps_feat_diff)
+    # if iteration == 1:
+    amount_below_5 = amount_stats_within(kps_feat_diff, 0.05, kps_feat_diff_mean if use_mean_denominator else None)
+    amount_below_10 = amount_stats_within(kps_feat_diff, 0.1, kps_feat_diff_mean if use_mean_denominator else None)
+    amount_below_20 = amount_stats_within(kps_feat_diff, 0.2, kps_feat_diff_mean if use_mean_denominator else None)
+    ratio5 = amount_below_5 / len(kps_feat_diff)
+    ratio10 = amount_below_10 / len(kps_feat_diff)
+    ratio20 = amount_below_20 / len(kps_feat_diff)
 
-        print(f'min value before removal: {kps_feat_min}')
-        print(f'max value before removal: {kps_feat_max}')
-        print(f'mean before removal: {kps_feat_diff_mean}')
-        print(f'std before removal: {kps_feat_diff_std}')
+    print(f'min value before removal: {kps_feat_min}')
+    print(f'max value before removal: {kps_feat_max}')
+    print(f'mean before removal: {kps_feat_diff_mean}')
+    print(f'std before removal: {kps_feat_diff_std}')
 
-        print(f'matches below 0.05 error before removal: {amount_below_5} of {len(kps_feat_diff)} ({ratio5})')
-        print(f'matches below 0.10 error before removal: {amount_below_10} of {len(kps_feat_diff)}'
-              f' ({amount_below_10/len(kps_feat_diff)})')
-        print(f'matches below 0.20 error before removal: {amount_below_20} of {len(kps_feat_diff)}'
-              f' ({amount_below_20/len(kps_feat_diff)})')
+    print(f'matches below 0.05 error before removal: {amount_below_5} of {len(kps_feat_diff)} ({ratio5})')
+    print(f'matches below 0.10 error before removal: {amount_below_10} of {len(kps_feat_diff)} ({ratio10})')
+    print(f'matches below 0.20 error before removal: {amount_below_20} of {len(kps_feat_diff)} ({ratio20})')
 
-        # `ratio >= 0.5` means we believe its the same object
-        # iteration 0 means we didn't remove anything yet
-        insert_and_commit((case, name, pair, 0, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
-                           kps_feat_diff_std, len(matches_origin), None,
-                           float(amount_below_5), float(amount_below_10), float(amount_below_20), int(ratio5 >= 0.5)))
+    insert_and_commit((case, name, pair, iteration, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
+                       kps_feat_diff_std, len(matches_origin), None,
+                       float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
     write_histogram(
         f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}_iter{iteration}_original.png',
         kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
         title=f'{case}, {name}, {step_fn.__name__}, pair {pair}, iter {iteration}, original',
-        xlabel=f'{step_fn.__name__}', ylabel='Frequency')
-
-    write_matches_img(f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}'
-                      f'_iter{iteration}_original_matches.png',
-                      img1, kps1_origin, img2, kps2_origin, matches_origin[:ARR_LEN])
+        xlabel=f'{step_fn.__name__}', ylabel='Frequency', xrange=(0, 3) if step_fn == dist_step else (0, 30))
 
     matches, kps1, kps2, removed_matches = remove_fake_matches(
         matches_origin, kps1_origin, kps2_origin, kps_feat_diff,
@@ -127,6 +117,8 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
     amount_below_10 = amount_stats_within(kps_feat_diff, 0.1, kps_feat_diff_mean if use_mean_denominator else None)
     amount_below_20 = amount_stats_within(kps_feat_diff, 0.2, kps_feat_diff_mean if use_mean_denominator else None)
     ratio5 = amount_below_5 / len(kps_feat_diff)
+    ratio10 = amount_below_10 / len(kps_feat_diff)
+    ratio20 = amount_below_20 / len(kps_feat_diff)
 
     print(f'min value after removal: {kps_feat_min}')
     print(f'max value after removal: {kps_feat_max}')
@@ -136,20 +128,18 @@ def process_step(case, name, pair, iteration, img1, img2, matches_origin, kps1_o
           f' ({len(matches)/len(matches_origin)})')
 
     print(f'matches below 0.05 error after removal: {amount_below_5} of {len(kps_feat_diff)} ({ratio5})')
-    print(f'matches below 0.10 error after removal: {amount_below_10} of {len(kps_feat_diff)}'
-          f' ({amount_below_10/len(kps_feat_diff)})')
-    print(f'matches below 0.20 error after removal: {amount_below_20} of {len(kps_feat_diff)}'
-          f' ({amount_below_20/len(kps_feat_diff)})')
+    print(f'matches below 0.10 error after removal: {amount_below_10} of {len(kps_feat_diff)} ({ratio10})')
+    print(f'matches below 0.20 error after removal: {amount_below_20} of {len(kps_feat_diff)} ({ratio20})')
 
     insert_and_commit((case, name, pair, iteration, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
                        kps_feat_diff_std, len(matches_origin), len(matches),
-                       float(amount_below_5), float(amount_below_10), float(amount_below_20), int(ratio5 >= 0.5)))
+                       float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
     write_histogram(
         f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}_iter{iteration}_processed.png',
         kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
         title=f'{case}, {name}, {step_fn.__name__}, pair {pair}, iter {iteration}, processed',
-        xlabel=f'{step_fn.__name__}', ylabel='Frequency')
+        xlabel=f'{step_fn.__name__}', ylabel='Frequency', xrange=(0, 3) if step_fn == dist_step else (0, 30))
 
     return matches, kps1, kps2
 
@@ -173,24 +163,34 @@ def stats_within(stats, thresh=0.05, denominator=None):
     return np.array(list(map(ft.partial(op.ge, 1 + thresh), _stats)))
 
 
-def write_histogram(path, xs, mean, std, minimum, maximum, title=None, xlabel=None, ylabel=None):
-    frequency = len(xs) // 5
+def write_histogram(path, xs, mean, std, minimum, maximum, xrange=None, title=None, xlabel=None, ylabel=None):
     plt.cla()
-    plt.hist(xs, frequency, density=1, color='xkcd:grey')
-    # plt.hist(xs, frequency, range=(mean - (3 * std), mean + (3 * std)), density=1)
+    plt.hist(xs, bins=25, range=xrange, density=False, color='xkcd:grey')
     plt.title(title if title is not None else '')
     plt.xlabel(xlabel if xlabel is not None else '')
     plt.ylabel(ylabel if ylabel is not None else '')
     plt.grid(True)
 
-    line_min = plt.axvline(minimum, c='xkcd:red', ls='-')
-    line_std = plt.axvline(mean - std, c='xkcd:purple', ls='--')
-    plt.axvline(mean + std, c='xkcd:purple', ls='--')
-    line_mean = plt.axvline(mean, c='xkcd:blue', ls='--')
-    line_max = plt.axvline(maximum, c='xkcd:red', ls='-')
+    if minimum >= xrange[0]:
+        line_min = plt.axvline(minimum, c='xkcd:red', ls='-')
+        line_min.set_label('min = %.4f' % minimum)
 
-    plt.legend((line_min, line_mean, line_std, line_max),
-               ('min = %.4f' % minimum, r'$\mu$ = %.4f' % mean, r'$\sigma$ = %.4f' % std, 'max = %.4f' % maximum))
+    if xrange[0] <= mean - std <= xrange[1]:
+        line_std = plt.axvline(mean - std, c='xkcd:purple', ls='--')
+        line_std.set_label(r'$\sigma$ = %.4f' % std)
+
+    if xrange[0] <= mean + std <= xrange[1]:
+        plt.axvline(mean + std, c='xkcd:purple', ls='--')
+
+    if xrange[0] <= mean <= xrange[1]:
+        line_mean = plt.axvline(mean, c='xkcd:blue', ls='--')
+        line_mean.set_label(r'$\mu$ = %.4f' % mean)
+
+    if maximum <= xrange[1]:
+        line_max = plt.axvline(maximum, c='xkcd:red', ls='-')
+        line_max.set_label('max = %.4f' % maximum)
+
+    plt.legend()
 
     plt.savefig(path)
     # plt.show()
@@ -301,9 +301,10 @@ def insert_and_commit(values):
         """INSERT INTO {} (
             kase, name, pair, iteration, status,
             kps_feat_min, kps_feat_max, kps_feat_diff_mean, kps_feat_diff_std,
-            matches_origin, matches, amount_below_5, amount_below_10, amount_below_20, considered_eq
+            matches_origin, matches, amount_below_5, amount_below_10, amount_below_20,
+            ratio5, ratio10, ratio20
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.format(TABLE_NAME), values)
     conn.commit()
 
@@ -328,7 +329,9 @@ if __name__ == '__main__':
                 amount_below_5 integer,
                 amount_below_10 integer,
                 amount_below_20 integer,
-                considered_eq integer
+                ratio5 real,
+                ratio10 real,
+                ratio20 real
             );
             """
         )
