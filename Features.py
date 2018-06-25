@@ -1,14 +1,15 @@
-import cv2
-import sqlite3
-import numpy as np
 import operator as op
-import functools as ft
-import geometry as gmt
+import sqlite3
 from time import time, strftime
+
+import cv2
+import numpy as np
 from matplotlib import pyplot as plt
 
+import geometry as gmt
+
 ARR_LEN = 10
-NUM_OF_PAIRS = 1
+NUM_OF_PAIRS = 5
 TABLE_NAME = f'stats_{strftime("%y%m%d_%H%M%S")}'
 
 
@@ -23,14 +24,14 @@ def main():
 
     methods = {
         'ORB': orb,
-        # 'AKAZE': akaze,
-        # 'BRISK': brisk,
+        'AKAZE': akaze,
+        'BRISK': brisk,
         # 'SIFT': sift,
         # 'SURF': surf
     }
 
     cases = [
-        'Different Object',
+        # 'Different Object',
         'Same Object, Same Scale',
         'Same Object, Different Scale'
     ]
@@ -71,7 +72,7 @@ def main():
 def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount,
                  use_mean_denominator=False):
     path_prefix = f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}'
-    print(f'\nremoving outliers with {step_fn.__name__}, iteration {iteration}')
+    print(f'\nremoving outliers with {step_fn.__name__} over {std_amount} std, iteration {iteration}')
 
     kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches_origin, kps1_origin, kps2_origin)
     kps_feat_min = np.min(kps_feat_diff)
@@ -85,18 +86,22 @@ def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_
     ratio5 = amount_below_5 / len(kps_feat_diff)
     ratio10 = amount_below_10 / len(kps_feat_diff)
     ratio20 = amount_below_20 / len(kps_feat_diff)
+    kps_feat_diff_beyond_std = \
+        len(kps_feat_diff) - amount_within_std(kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
 
+    print(f'matches before removal: {len(matches_origin)}')
     print(f'min value before removal: {kps_feat_min}')
     print(f'max value before removal: {kps_feat_max}')
     print(f'mean before removal: {kps_feat_diff_mean}')
     print(f'std before removal: {kps_feat_diff_std}')
+    print(f'amount beyond std before removal: {kps_feat_diff_beyond_std}')
 
     print(f'matches below 0.05 error before removal: {amount_below_5} of {len(kps_feat_diff)} ({ratio5})')
     print(f'matches below 0.10 error before removal: {amount_below_10} of {len(kps_feat_diff)} ({ratio10})')
     print(f'matches below 0.20 error before removal: {amount_below_20} of {len(kps_feat_diff)} ({ratio20})')
 
     insert_and_commit((case, name, pair, iteration, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
-                       kps_feat_diff_std, len(matches_origin), None,
+                       kps_feat_diff_std, len(matches_origin), None, kps_feat_diff_beyond_std,
                        float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
     write_boxplot(f'{path_prefix}_box_original.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
@@ -121,20 +126,23 @@ def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_
     ratio5 = amount_below_5 / len(kps_feat_diff)
     ratio10 = amount_below_10 / len(kps_feat_diff)
     ratio20 = amount_below_20 / len(kps_feat_diff)
+    kps_feat_diff_beyond_std = \
+        len(kps_feat_diff) - amount_within_std(kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
 
+    print(f'removed {len(removed_matches)} matches ({len(removed_matches) / len(matches_origin)})')
+    print(f'matches after removal: {len(matches)} ({len(matches) / len(matches_origin)})')
     print(f'min value after removal: {kps_feat_min}')
     print(f'max value after removal: {kps_feat_max}')
     print(f'mean after removal: {kps_feat_diff_mean}')
     print(f'std after removal: {kps_feat_diff_std}')
-    print(f'remaining matches after removal with {std_amount} std: {len(matches)} of {len(matches_origin)}'
-          f' ({len(matches)/len(matches_origin)})')
+    print(f'amount beyond std after removal: {kps_feat_diff_beyond_std}')
 
     print(f'matches below 0.05 error after removal: {amount_below_5} of {len(kps_feat_diff)} ({ratio5})')
     print(f'matches below 0.10 error after removal: {amount_below_10} of {len(kps_feat_diff)} ({ratio10})')
     print(f'matches below 0.20 error after removal: {amount_below_20} of {len(kps_feat_diff)} ({ratio20})')
 
     insert_and_commit((case, name, pair, iteration, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
-                       kps_feat_diff_std, len(matches_origin), len(matches),
+                       kps_feat_diff_std, len(matches_origin), len(matches), kps_feat_diff_beyond_std,
                        float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
     write_boxplot(f'{path_prefix}_box_processed.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
@@ -149,7 +157,7 @@ def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_
 
 def amount_stats_within(stats, thresh=0.05, denominator=None):
     is_below = stats_within(stats, thresh, denominator)
-    return sum(is_below)
+    return np.sum(is_below)
 
 
 def stats_within(stats, thresh=0.05, denominator=None):
@@ -161,9 +169,12 @@ def stats_within(stats, thresh=0.05, denominator=None):
     """
     _stats = stats
     if denominator is not None:
-        _stats = np.array(
-            list(map(ft.partial(op.mul, 1 / denominator), stats)))
-    return np.array(list(map(ft.partial(op.ge, 1 + thresh), _stats)))
+        _stats = stats / denominator
+    return _stats < (1 + thresh)
+
+
+def amount_within_std(stats, mean, std):
+    return np.sum(np.logical_and(stats >= mean - std, stats <= mean + std))
 
 
 def write_boxplot(path, xs, mean, std, title=None):
@@ -187,7 +198,7 @@ def write_boxplot(path, xs, mean, std, title=None):
 
 def write_histogram(path, xs, mean, std, minimum, maximum, xrange=None, title=None, xlabel=None, ylabel=None):
     plt.cla()
-    plt.hist(xs, bins=25, range=xrange, density=False, color='xkcd:grey')
+    plt.hist(xs, bins=25, range=xrange, density=True, color='xkcd:grey')
     plt.title(title if title is not None else '')
     plt.xlabel(xlabel if xlabel is not None else '')
     plt.ylabel(ylabel if ylabel is not None else '')
@@ -322,10 +333,10 @@ def insert_and_commit(values):
         """INSERT INTO {} (
             kase, name, pair, iteration, status,
             kps_feat_min, kps_feat_max, kps_feat_diff_mean, kps_feat_diff_std,
-            matches_origin, matches, amount_below_5, amount_below_10, amount_below_20,
+            matches_origin, matches, amount_beyond_std, amount_below_5, amount_below_10, amount_below_20,
             ratio5, ratio10, ratio20
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.format(TABLE_NAME), values)
     conn.commit()
 
@@ -347,6 +358,7 @@ if __name__ == '__main__':
                 kps_feat_diff_std real,
                 matches_origin integer,
                 matches integer,
+                amount_beyond_std integer,
                 amount_below_5 integer,
                 amount_below_10 integer,
                 amount_below_20 integer,
