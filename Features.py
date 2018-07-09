@@ -1,5 +1,6 @@
 import operator as op
 import sqlite3
+from glob import glob
 from time import time, strftime
 
 import cv2
@@ -9,7 +10,6 @@ from matplotlib import pyplot as plt
 import geometry as gmt
 
 ARR_LEN = 10
-NUM_OF_PAIRS = 5
 TABLE_NAME = f'stats_{strftime("%y%m%d_%H%M%S")}'
 
 
@@ -31,7 +31,7 @@ def main():
     }
 
     cases = [
-        # 'Different Object',
+        'Different Object',
         'Same Object, Same Scale',
         'Same Object, Different Scale'
     ]
@@ -40,31 +40,34 @@ def main():
         print('\n\n\n####################')
         print(f'Running case: {case}')
 
-        for pair in range(NUM_OF_PAIRS):
+        image_pairs = len(glob(f'photos/{case}/*a.jpg'))
+        for pair in range(image_pairs):
             print('\n\n+++++++++++++++')
-            print(f'Pair {pair + 1} of {NUM_OF_PAIRS}')
+            print(f'Pair {pair}/{image_pairs - 1}')
 
-            img1 = cv2.imread(f'photos/{case}/{pair}a.jpg', 0)
-            img2 = cv2.imread(f'photos/{case}/{pair}b.jpg', 0)
+            try:
+                img1 = cv2.imread(f'photos/{case}/{pair}a.jpg', 0)
+                img2 = cv2.imread(f'photos/{case}/{pair}b.jpg', 0)
 
-            for name, method in methods.items():
-                print('\n---------------')
-                print(f'Running method: {name}')
+                for name, method in methods.items():
+                    print('\n---------------')
+                    print(f'Running method: {name}')
 
-                matches_origin, kps1_origin, kps2_origin, _ = get_stats(method, img1, img2)
+                    matches_origin, kps1_origin, kps2_origin, _ = get_stats(method, img1, img2)
 
-                # write_matches_img(f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}'
-                #                   f'_iter{iteration}_original_matches.png',
-                #                   img1, kps1_origin, img2, kps2_origin, matches_origin[:ARR_LEN])
+                    # write_matches_img(f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}'
+                    #                   f'_iter{iteration}_original_matches.png',
+                    #                   img1, kps1_origin, img2, kps2_origin, matches_origin[:ARR_LEN])
 
-                matches, kps1, kps2 = process_step(case, name, pair, 1,
-                                                   matches_origin, kps1_origin, kps2_origin, dist_step, 1)
-                matches, kps1, kps2 = process_step(case, name, pair, 2,
-                                                   matches, kps1, kps2, angle_step, 1, use_mean_denominator=True)
-                process_step(case, name, pair, 3, matches, kps1, kps2, dist_step, 1)
-
-            del img1
-            del img2
+                    matches, kps1, kps2 = process_step(case, name, pair, 1,
+                                                       matches_origin, kps1_origin, kps2_origin, dist_step, 1)
+                    process_step(case, name, pair, 2, matches, kps1, kps2, dist_step, 1)
+            except IOError as ioerr:
+                print(ioerr)
+            finally:
+                del img1  # img1 will always exist because of glob
+                if img2 is not None:
+                    del img2
     execute_time_f = time()
     print(f'\nTest executed in {execute_time_f - execute_time_i} seconds')
 
@@ -101,7 +104,7 @@ def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_
     print(f'matches below 0.20 error before removal: {amount_below_20} of {len(kps_feat_diff)} ({ratio20})')
 
     insert_and_commit((case, name, pair, iteration, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
-                       kps_feat_diff_std, len(matches_origin), None, kps_feat_diff_beyond_std,
+                       kps_feat_diff_std, len(matches_origin), None, int(kps_feat_diff_beyond_std),
                        float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
     write_boxplot(f'{path_prefix}_box_original.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
@@ -142,7 +145,7 @@ def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_
     print(f'matches below 0.20 error after removal: {amount_below_20} of {len(kps_feat_diff)} ({ratio20})')
 
     insert_and_commit((case, name, pair, iteration, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
-                       kps_feat_diff_std, len(matches_origin), len(matches), kps_feat_diff_beyond_std,
+                       kps_feat_diff_std, len(matches_origin), len(matches), int(kps_feat_diff_beyond_std),
                        float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
     write_boxplot(f'{path_prefix}_box_processed.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
