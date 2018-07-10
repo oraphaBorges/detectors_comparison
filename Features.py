@@ -31,23 +31,28 @@ def main():
     }
 
     cases = [
-        'Different Object',
+        # 'Different Object',
         'Same Object, Same Scale',
-        'Same Object, Different Scale'
+        # 'Same Object, Different Scale'
     ]
 
     for case in cases:
         print('\n\n\n####################')
         print(f'Running case: {case}')
 
-        image_pairs = len(glob(f'photos/{case}/*a.jpg'))
-        for pair in range(image_pairs):
+        path_images = glob(f'photos/{case}/*a.jpg').sort()
+        qtty_images = len(path_images)
+        curr_image = 0
+        for path_a in path_images:
+            path_prefix = path_a.replace('a.jpg', '')
+            pair_number = path_prefix.split('/')[-1]
             print('\n\n+++++++++++++++')
-            print(f'Pair {pair}/{image_pairs - 1}')
+            print(f'Pair {pair_number} ({curr_image}/{qtty_images - 1})')
+            curr_image += 1
 
             try:
-                img1 = cv2.imread(f'photos/{case}/{pair}a.jpg', 0)
-                img2 = cv2.imread(f'photos/{case}/{pair}b.jpg', 0)
+                img1 = cv2.imread(f'{path_prefix}a.jpg', 0)
+                img2 = cv2.imread(f'{path_prefix}b.jpg', 0)
 
                 for name, method in methods.items():
                     print('\n---------------')
@@ -59,9 +64,15 @@ def main():
                     #                   f'_iter{iteration}_original_matches.png',
                     #                   img1, kps1_origin, img2, kps2_origin, matches_origin[:ARR_LEN])
 
-                    matches, kps1, kps2 = process_step(case, name, pair, 1,
-                                                       matches_origin, kps1_origin, kps2_origin, dist_step, 1)
-                    process_step(case, name, pair, 2, matches, kps1, kps2, dist_step, 1)
+                    # matches, kps1, kps2 = process_step(case, name, pair, 1,
+                    #                                    matches_origin, kps1_origin, kps2_origin, dist_step, 1)
+                    # process_step(case, name, pair, 2, matches, kps1, kps2, dist_step, 1)
+
+                    matches, kps1, kps2 = process_by_med(case, name, pair_number, 1,
+                                                         matches_origin, kps1_origin, kps2_origin, dist_step)
+                    matches, kps1, kps2 = process_by_med(case, name, pair_number, 2, matches, kps1, kps2, dist_step)
+                    process_by_std(case, name, pair_number, 3, matches, kps1, kps2, dist_step, 1)
+
             except IOError as ioerr:
                 print(ioerr)
             finally:
@@ -72,9 +83,66 @@ def main():
     print(f'\nTest executed in {execute_time_f - execute_time_i} seconds')
 
 
-def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount,
-                 use_mean_denominator=False):
-    path_prefix = f'results/matches/{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}'
+def process_by_med(case, name, pair, iteration, matches_origin, kps1_origin, kps2_origin, step_fn):
+    path_folder = 'results/matches'
+    filename = f'{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}_med'
+    print(f'\nremoving outliers with {step_fn.__name__} over boxes, iteration {iteration}')
+
+    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches_origin, kps1_origin, kps2_origin)
+    kps_feat_min = np.min(kps_feat_diff)
+    kps_feat_max = np.max(kps_feat_diff)
+    kps_feat_qs = np.percentile(kps_feat_diff, [25, 50, 70])
+    print(f'matches before removal: {len(matches_origin)}')
+    print(f'min value before removal: {kps_feat_min}')
+    print(f'max value before removal: {kps_feat_max}')
+    print(f'mean before removal: {kps_feat_diff_mean}')
+    print(f'std before removal: {kps_feat_diff_std}')
+    print(f'medians before removal: {kps_feat_qs}')
+
+    insert_and_commit((case, name, pair, iteration, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
+                       kps_feat_diff_std, len(matches_origin), None, None, None, None, None, None, None, None))
+
+    write_boxplot(f'{path_folder}/box_{filename}_original.png',
+                  kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, [kps_feat_qs[1]])
+
+    write_histogram(f'{path_folder}/hist_{filename}_original.png',
+                    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
+                    xlabel=f'{step_fn.__name__}', ylabel='Frequency',
+                    xrange=(0, 3) if step_fn == dist_step else (0, 30))
+
+    matches, kps1, kps2, removed_matches = remove_fake_matches(
+        matches_origin, kps1_origin, kps2_origin, kps_feat_diff,
+        kps_feat_qs[0], kps_feat_qs[2])
+
+    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches, kps1, kps2)
+    kps_feat_min = np.min(kps_feat_diff)
+    kps_feat_max = np.max(kps_feat_diff)
+    kps_feat_qs = np.percentile(kps_feat_diff, [25, 50, 70])
+    print(f'matches after removal: {len(matches)}')
+    print(f'min value after removal: {kps_feat_min}')
+    print(f'max value after removal: {kps_feat_max}')
+    print(f'mean after removal: {kps_feat_diff_mean}')
+    print(f'std after removal: {kps_feat_diff_std}')
+    print(f'medians after removal: {kps_feat_qs}')
+
+    insert_and_commit((case, name, pair, iteration, step_fn.__name__, kps_feat_min, kps_feat_max, kps_feat_diff_mean,
+                       kps_feat_diff_std, len(matches_origin), len(matches), None, None, None, None, None, None, None))
+
+    write_boxplot(f'{path_folder}/box_{filename}_processed.png',
+                  kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, [kps_feat_qs[1]])
+
+    write_histogram(f'{path_folder}/hist_{filename}_processed.png',
+                    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
+                    xlabel=f'{step_fn.__name__}', ylabel='Frequency',
+                    xrange=(0, 3) if step_fn == dist_step else (0, 30))
+
+    return matches, kps1, kps2
+
+
+def process_by_std(case, name, pair, iteration, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount,
+                   use_mean_denominator=False):
+    path_folder = 'results/matches'
+    filename = f'{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}_std'
     print(f'\nremoving outliers with {step_fn.__name__} over {std_amount} std, iteration {iteration}')
 
     kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches_origin, kps1_origin, kps2_origin)
@@ -107,9 +175,10 @@ def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_
                        kps_feat_diff_std, len(matches_origin), None, int(kps_feat_diff_beyond_std),
                        float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
-    write_boxplot(f'{path_prefix}_box_original.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
+    write_boxplot(f'{path_folder}/box_{filename}_original.png',
+                  kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
 
-    write_histogram(f'{path_prefix}_hist_original.png',
+    write_histogram(f'{path_folder}/hist_{filename}_original.png',
                     kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
                     xlabel=f'{step_fn.__name__}', ylabel='Frequency',
                     xrange=(0, 3) if step_fn == dist_step else (0, 30))
@@ -148,10 +217,10 @@ def process_step(case, name, pair, iteration, matches_origin, kps1_origin, kps2_
                        kps_feat_diff_std, len(matches_origin), len(matches), int(kps_feat_diff_beyond_std),
                        float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
-    write_boxplot(f'{path_prefix}_box_processed.png', kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
+    write_boxplot(f'{path_folder}/box_{filename}_processed.png',
+                  kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
 
-    write_histogram(
-        f'{path_prefix}_hist_processed.png',
+    write_histogram(f'{path_folder}/hist_{filename}_processed.png',
         kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
         xlabel=f'{step_fn.__name__}', ylabel='Frequency', xrange=(0, 3) if step_fn == dist_step else (0, 30))
 
@@ -180,26 +249,28 @@ def amount_within_std(stats, mean, std):
     return np.sum(np.logical_and(stats >= mean - std, stats <= mean + std))
 
 
-def write_boxplot(path, xs, mean, std, title=None):
+def write_boxplot(path, xs, mean=None, std=None, usermedians=None, title=None):
     plt.cla()
-    plt.boxplot(xs)
+    plt.boxplot(xs, usermedians=usermedians)
     plt.title(title if title is not None else '')
     plt.grid(True)
 
-    line_std = plt.axhline(mean - std, c='xkcd:purple', ls='--')
-    line_std.set_label(r'$\sigma$ = %.4f' % std)
+    if mean is not None and std is not None:
+        line_std = plt.axhline(mean - std, c='xkcd:purple', ls='--')
+        line_std.set_label(r'$\sigma$ = %.4f' % std)
 
-    plt.axhline(mean + std, c='xkcd:purple', ls='--')
+        plt.axhline(mean + std, c='xkcd:purple', ls='--')
 
-    line_mean = plt.axhline(mean, c='xkcd:blue', ls='--')
-    line_mean.set_label(r'$\mu$ = %.4f' % mean)
+        line_mean = plt.axhline(mean, c='xkcd:blue', ls='--')
+        line_mean.set_label(r'$\mu$ = %.4f' % mean)
 
-    plt.legend()
+        plt.legend()
 
     plt.savefig(path)
 
 
-def write_histogram(path, xs, mean, std, minimum, maximum, xrange=None, title=None, xlabel=None, ylabel=None):
+def write_histogram(path, xs,
+                    mean=None, std=None, minimum=None, maximum=None, xrange=None, title=None, xlabel=None, ylabel=None):
     plt.cla()
     plt.hist(xs, bins=25, range=xrange, density=True, color='xkcd:grey')
     plt.title(title if title is not None else '')
@@ -207,24 +278,25 @@ def write_histogram(path, xs, mean, std, minimum, maximum, xrange=None, title=No
     plt.ylabel(ylabel if ylabel is not None else '')
     plt.grid(True)
 
-    if minimum >= xrange[0]:
-        line_min = plt.axvline(minimum, c='xkcd:red', ls='-')
-        line_min.set_label('min = %.4f' % minimum)
+    if mean is not None and std is not None and minimum is not None and maximum is not None and xrange is not None:
+        if minimum >= xrange[0]:
+            line_min = plt.axvline(minimum, c='xkcd:red', ls='-')
+            line_min.set_label('min = %.4f' % minimum)
 
-    if xrange[0] <= mean - std <= xrange[1]:
-        line_std = plt.axvline(mean - std, c='xkcd:purple', ls='--')
-        line_std.set_label(r'$\sigma$ = %.4f' % std)
+        if xrange[0] <= mean - std <= xrange[1]:
+            line_std = plt.axvline(mean - std, c='xkcd:purple', ls='--')
+            line_std.set_label(r'$\sigma$ = %.4f' % std)
 
-    if xrange[0] <= mean + std <= xrange[1]:
-        plt.axvline(mean + std, c='xkcd:purple', ls='--')
+        if xrange[0] <= mean + std <= xrange[1]:
+            plt.axvline(mean + std, c='xkcd:purple', ls='--')
 
-    if xrange[0] <= mean <= xrange[1]:
-        line_mean = plt.axvline(mean, c='xkcd:blue', ls='--')
-        line_mean.set_label(r'$\mu$ = %.4f' % mean)
+        if xrange[0] <= mean <= xrange[1]:
+            line_mean = plt.axvline(mean, c='xkcd:blue', ls='--')
+            line_mean.set_label(r'$\mu$ = %.4f' % mean)
 
-    if maximum <= xrange[1]:
-        line_max = plt.axvline(maximum, c='xkcd:red', ls='-')
-        line_max.set_label('max = %.4f' % maximum)
+        if maximum <= xrange[1]:
+            line_max = plt.axvline(maximum, c='xkcd:red', ls='-')
+            line_max.set_label('max = %.4f' % maximum)
 
     plt.legend()
 
