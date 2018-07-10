@@ -40,7 +40,8 @@ def main():
         print('\n\n\n####################')
         print(f'Running case: {case}')
 
-        path_images = glob(f'photos/{case}/*a.jpg').sort()
+        path_images = glob(f'photos/{case}/*a.jpg')
+        path_images.sort()
         qtty_images = len(path_images)
         curr_image = 0
         for path_a in path_images:
@@ -339,6 +340,14 @@ def dist_step(matches, kps1, kps2):
 
     diff, diff_mean, diff_std = process_kps_feat(
         matches, dist1, dist2, op.truediv)
+
+    i = 0
+    for match in np.random.choice(matches, 10):
+        q = match.queryIdx
+        t = match.trainIdx
+        print(f'{i}th match between {kps1[q].pt} and {kps2[t].pt}: {dist1[q]} / {dist2[t]} = {diff[i]}')
+        i += 1
+
     return diff, diff_mean, diff_std
 
 
