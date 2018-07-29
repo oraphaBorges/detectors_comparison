@@ -57,17 +57,15 @@ def main():
                 img1 = cv2.imread(f'{path_prefix}a.jpg', 0)
                 img2 = cv2.imread(f'{path_prefix}b.jpg', 0)
 
-                for name, method in methods.items():
+                for method_name, method in methods.items():
                     print('\n---------------')
-                    print(f'Running method: {name}')
+                    print(f'Running method: {method_name}')
 
-                    matcher = Matcher(method, img1, img2)
+                    matcher = Matcher(method, img1, img2, name=method_name)
                     matcher.match()
 
-                    process_by_std(matcher, case, name, pair_number, 1,
-                                   dist_step, 1)
-                    process_by_std(matcher, case, name, pair_number, 2,
-                                   dist_step, 1)
+                    process_by_fn(matcher, case, pair_number, 1, dist_std)
+                    process_by_fn(matcher, case, pair_number, 2, dist_std)
 
             except IOError as ioerr:
                 print(ioerr)
@@ -79,64 +77,77 @@ def main():
     print(f'\nTest executed in {execute_time_f - execute_time_i} seconds')
 
 
-def process_by_std(matcher, case, name, pair, iteration, step_fn, std_amount,
-                   sort=False):
-    path_folder = 'results/matches'
-    filename = f'{case}_{name}_pair{pair}_iter{iteration}' \
-               f'_{step_fn.__name__}_std'
-    print(f'\nremoving outliers with {step_fn.__name__}'
-          f' over {std_amount} std, iteration {iteration}')
+def process_by_fn(matcher, case_id, pair_id, exec_id, fn, *fn_args,
+                  sort=False, folder_path='results/matches'):
+    """
 
-    diff, diff_min, diff_max, diff_mean, diff_std = step_fn(matcher)
+    fn must return a 7-elements-long tuple containing:
+    - the arguments of Matcher.filter_by in the default order
+    (measure, lower bound, upper bound);
+    - the min, max, mean and standard deviation of measure.
+
+    :param matcher: a Matcher object already matched
+    :param case_id: an ID for the case being treated
+    :param pair_id: an ID for the pair of images being treated
+    :param exec_id: an ID for the execution being made
+    :param fn: a callable that returns the arguments for Matcher.filter_by()
+    :param fn_args: optional additional arguments to fn
+    :param sort: if should sort matches after this execution
+    :param folder_path: optional folder path to save results
+    :return: removed matches
+    """
+    print(f'\nremoving outliers with {fn.__name__} and args {fn_args}')
+    filename = f'{case_id}_{matcher.name}_pair{pair_id}_exec{exec_id}' \
+               f'_{fn.__name__}'
+
+    measure, lo_bound, up_bound, meas_min, meas_max, meas_mean, meas_std = fn(
+        matcher, *fn_args)
 
     print(f'matches before removal: {len(matcher.matches)}')
-    print(f'min value before removal: {diff_min}')
-    print(f'max value before removal: {diff_max}')
-    print(f'mean before removal: {diff_mean}')
-    print(f'std before removal: {diff_std}')
+    print(f'min before removal: {meas_min}')
+    print(f'max before removal: {meas_max}')
+    print(f'mean before removal: {meas_mean}')
+    print(f'std before removal: {meas_std}')
 
-    insert_and_commit((case, name, pair, iteration, step_fn.__name__,
-                       diff_min, diff_max, diff_mean, diff_std,
+    insert_and_commit((case_id, matcher.name, pair_id, exec_id, fn.__name__,
+                       meas_min, meas_max, meas_mean, meas_std,
                        len(matcher.matches), None))
 
-    write_boxplot(f'{path_folder}/box_{filename}_original.png',
-                  diff, diff_mean, diff_std)
+    write_boxplot(f'{folder_path}/box_{filename}_original.png',
+                  measure, meas_mean, meas_std)
 
-    write_histogram(f'{path_folder}/hist_{filename}_original.png',
-                    diff, diff_mean, diff_std, diff_min, diff_max,
-                    xlabel=f'{step_fn.__name__}', ylabel='Frequency',
-                    xrange=(0, 3) if step_fn == dist_step else (0, 30))
+    write_histogram(f'{folder_path}/hist_{filename}_original.png',
+                    measure, meas_mean, meas_std, meas_min, meas_max,
+                    xlabel=f'{fn.__name__}', ylabel='Frequency')
 
     matcher.backup()
-    removed_matches = matcher.filter_by(diff,
-                                        diff_mean - (diff_std * std_amount),
-                                        diff_mean + (diff_std * std_amount))
+    removed_matches = matcher.filter_by(measure, lo_bound, up_bound)
 
-    diff, diff_min, diff_max, diff_mean, diff_std = step_fn(matcher)
+    measure, lo_bound, up_bound, meas_min, meas_max, meas_mean, meas_std = fn(
+        matcher, *fn_args)
 
     print(f'removed {len(removed_matches)} matches'
           f' ({len(removed_matches) / len(matcher.snapshot["matches"])})')
     print(f'matches after removal: {len(matcher.matches)}'
           f' ({len(matcher.matches) / len(matcher.snapshot["matches"])})')
-    print(f'min after removal: {diff_min}')
-    print(f'max after removal: {diff_max}')
-    print(f'mean after removal: {diff_mean}')
-    print(f'std after removal: {diff_std}')
+    print(f'min after removal: {meas_min}')
+    print(f'max after removal: {meas_max}')
+    print(f'mean after removal: {meas_mean}')
+    print(f'std after removal: {meas_std}')
 
-    insert_and_commit((case, name, pair, iteration, step_fn.__name__,
-                       diff_min, diff_max, diff_mean, diff_std,
+    insert_and_commit((case_id, matcher.name, pair_id, exec_id, fn.__name__,
+                       meas_min, meas_max, meas_mean, meas_std,
                        len(matcher.snapshot['matches']), len(matcher.matches)))
 
-    write_boxplot(f'{path_folder}/box_{filename}_processed.png',
-                  diff, diff_mean, diff_std)
+    write_boxplot(f'{folder_path}/box_{filename}_processed.png',
+                  measure, meas_mean, meas_std)
 
-    write_histogram(f'{path_folder}/hist_{filename}_processed.png',
-                    diff, diff_mean, diff_std, diff_min, diff_max,
-                    xlabel=f'{step_fn.__name__}', ylabel='Frequency',
-                    xrange=(0, 3) if step_fn == dist_step else (0, 30))
+    write_histogram(f'{folder_path}/hist_{filename}_processed.png',
+                    measure, meas_mean, meas_std, meas_min, meas_max,
+                    xlabel=f'{fn.__name__}', ylabel='Frequency')
 
     if sort:
-        matcher.sort(diff)
+        matcher.sort(measure)
 
     return removed_matches
 
@@ -193,12 +204,10 @@ def write_histogram(path, xs,
     plt.ylabel(ylabel if ylabel is not None else '')
     plt.grid(True)
 
-    if mean is not None and std is not None and minimum is not None \
-            and maximum is not None and xrange is not None:
-        if minimum >= xrange[0]:
-            line_min = plt.axvline(minimum, c='xkcd:red', ls='-')
-            line_min.set_label('min = %.4f' % minimum)
+    if xrange is None:
+        xrange = (min(xs), max(xs))
 
+    if mean is not None and std is not None:
         if xrange[0] <= mean - std <= xrange[1]:
             line_std = plt.axvline(mean - std, c='xkcd:purple', ls='--')
             line_std.set_label(r'$\sigma$ = %.4f' % std)
@@ -209,6 +218,11 @@ def write_histogram(path, xs,
         if xrange[0] <= mean <= xrange[1]:
             line_mean = plt.axvline(mean, c='xkcd:blue', ls='--')
             line_mean.set_label(r'$\mu$ = %.4f' % mean)
+
+    if minimum is not None and maximum is not None:
+        if minimum >= xrange[0]:
+            line_min = plt.axvline(minimum, c='xkcd:red', ls='-')
+            line_min.set_label('min = %.4f' % minimum)
 
         if maximum <= xrange[1]:
             line_max = plt.axvline(maximum, c='xkcd:red', ls='-')
@@ -223,7 +237,20 @@ def print_matches(matcher):
     matcher.apply_over_kps(lambda q, t: print(f'({q.pt}), ({t.pt})'))
 
 
-def dist_step(matcher):
+def dist_std(matcher, std_multiplier=1):
+    diff = [match.distance for match in matcher.matches]
+    diff_min = min(diff)
+    diff_max = max(diff)
+    diff_mean = mean(diff)
+    diff_std = std(diff, diff_mean)
+
+    lo_bound = diff_mean - (diff_std * std_multiplier)
+    hi_bound = diff_mean + (diff_std * std_multiplier)
+
+    return diff, lo_bound, hi_bound, diff_min, diff_max, diff_mean, diff_std
+
+
+def dist_center_std(matcher, std_multiplier=1):
     center1 = gmt.kps_center(matcher.kps1)
     center2 = gmt.kps_center(matcher.kps2)
 
@@ -231,21 +258,31 @@ def dist_step(matcher):
     dist2 = gmt.find_kps_dist(center2, matcher.kps2)
 
     diff = matcher.apply_over_matches(dist1, dist2, op.truediv)
+    diff_min = min(diff)
+    diff_max = max(diff)
     diff_mean = mean(diff)
     diff_std = std(diff, diff_mean)
 
-    return diff, min(diff), max(diff), diff_mean, diff_std
+    lo_bound = diff_mean - (diff_std * std_multiplier)
+    hi_bound = diff_mean + (diff_std * std_multiplier)
+
+    return diff, lo_bound, hi_bound, diff_min, diff_max, diff_mean, diff_std
 
 
-def angle_step(matcher):
+def angle_std(matcher, std_multiplier=1):
     center1 = gmt.kps_center(matcher.kps1)
     center2 = gmt.kps_center(matcher.kps2)
 
     diff = matcher.apply_over_kps(gmt.get_kp_angle, center1, center2)
+    diff_min = min(diff)
+    diff_max = max(diff)
     diff_mean = mean(diff)
     diff_std = std(diff, diff_mean)
 
-    return diff, min(diff), max(diff), diff_mean, diff_std
+    lo_bound = diff_mean - (diff_std * std_multiplier)
+    hi_bound = diff_mean + (diff_std * std_multiplier)
+
+    return diff, lo_bound, hi_bound, diff_min, diff_max, diff_mean, diff_std
 
 
 def insert_and_commit(values):

@@ -9,16 +9,18 @@ class Matcher:
     """ Wrapper class around OpenCV's object detection,
     description and matching. """
 
-    def __init__(self, alg, img1, img2, norm=None):
+    def __init__(self, alg, img1, img2, name=None, norm=None):
         """
         :param alg: feature detector and descriptor from OpenCV Features2D
         :param img1: image 1
         :param img2: image 2
+        :param name: alg name
         :param norm: descriptor matcher type (int/enum from cv2)
         """
         self.alg = alg
         self.img1 = img1
         self.img2 = img2
+        self.name = name if name is not None else alg.getDefaultName()
         self.matcher = cv2.DescriptorMatcher.create(
             norm if norm is not None else alg.defaultNorm())
         self.time = None
