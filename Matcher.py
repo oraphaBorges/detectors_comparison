@@ -6,7 +6,8 @@ import numpy as np
 
 
 class Matcher:
-    """ Wrapper class around OpenCV's object detection, description and matching. """
+    """ Wrapper class around OpenCV's object detection,
+    description and matching. """
 
     def __init__(self, alg, img1, img2, norm=None):
         """
@@ -26,8 +27,47 @@ class Matcher:
         self.kps1, self.kps2 = None, None
         self.des1, self.des2 = None, None
 
-    def draw_matches(self, path=None, match_color=(0, 255, 0), point_color=(0, 0, 255)):
-        """ Get a side-by-side view of self.img1 and self.img2 and their matches.
+    def detect_and_compute(self):
+        """ Computes keypoints and descriptors for self.img1 and self.img2.
+
+        The time taken to compute everything is stored on self.time.
+        """
+        self.time = time()
+        self.kps1, self.des1 = self.alg.detectAndCompute(self.img1, mask=None)
+        self.kps2, self.des2 = self.alg.detectAndCompute(self.img2, mask=None)
+        self.time = time() - self.time
+
+    def match(self):
+        """ Matches computed descriptors.
+
+        Calls self.detect_and_compute() if any of self
+        kps1, des1, kps2, des2 is None (e.g. if you haven't).
+        """
+        if self.kps1 is None or self.des1 is None \
+                or self.kps2 is None or self.des2 is None:
+            self.detect_and_compute()
+        self.matches = self.matcher.match(self.des1, self.des2)
+
+    def sort(self, base_array=None):
+        """ Sorts self.matches according to their distance attribute
+        or base array parameter.
+
+        Also sorts self.kps_diff if it exists.
+
+        :param base_array: array-like object with the same length
+        as self.matches with scalar values to compute an ordering
+        :return: the indexes that have been used to sort the matches
+        """
+        if base_array is None:
+            base_array = [match.distance for match in self.matches]
+        indxs = np.argsort(base_array)
+        self.matches = self.matches[indxs]
+        return indxs
+
+    def draw_matches(self, path=None,
+                     match_color=(0, 255, 0), point_color=(0, 0, 255)):
+        """ Get a side-by-side view of
+        self.img1 and self.img2 and their matches.
 
         :param path: optional path to save the image in the filesystem
         :param match_color: BGR color of matches
@@ -41,27 +81,39 @@ class Matcher:
             cv2.imwrite(path, img_with_matches)
         return img_with_matches
 
-    def detect_and_compute(self):
-        """ Computes keypoints and descriptors for self.img1 and self.img2.
-
-        The time taken to compute everything is stored on self.time.
-        """
-        self.time = time()
-        self.kps1, self.des1 = self.alg.detectAndCompute(self.img1)
-        self.kps2, self.des2 = self.alg.detectAndCompute(self.img2)
-        self.time = time() - self.time
-
-    def match(self):
-        """ Matches computed descriptors. """
-        self.matches = self.matcher.match(self.des1, self.des2)
-
     def backup(self):
-        """ Deep-copies all attributes to snapshot (except any previous snapshot). """
-        # set self.snapshot to None so the deep copy
+        """ Copies all attributes to self.snapshot
+        (except any previous snapshot). """
+        # set self.snapshot to None so the copy
         # won't end up nesting all previous snapshots
         # if this is called more than once
         self.snapshot = None
-        self.snapshot = cp.deepcopy(self.__dict__)
+        self.snapshot = cp.copy(self.__dict__)
+
+    def apply_over_kps(self, fn, *fn_args):
+        """ Utility method that calls self.apply_over_matches with
+        self.kps1 and self.kps2 as arguments.
+
+        See self.apply_over_matches for more details.
+        """
+        return self.apply_over_matches(self.kps1, self.kps2, fn, *fn_args)
+
+    def apply_over_matches(self, meas1, meas2, fn, *fn_args):
+        """ Calls fn for all pairs of meas1 and meas2 indexed by self.matches.
+
+        Passes on fn_args to fn.
+        Note that the result depends on the current ordering of matches.
+
+        :param fn: function what will receive each pair
+        :param fn_args: optional additional arguments to fn
+        :return: all returned values from fn in a list
+        """
+        measures = []
+        for match in self.matches:
+            q = meas1[match.queryIdx]
+            t = meas2[match.trainIdx]
+            measures.append(fn(q, t, *fn_args))
+        return measures
 
     def filter_by(self, measure, lower_bound, upper_bound):
         """ Filters and *overwrites* self keypoints, descriptors and matches
@@ -80,13 +132,14 @@ class Matcher:
         removed_matches = []
         for i in range(len(self.matches)):
             if lower_bound <= measure[i] <= upper_bound:
-                kps1.append(cp.deepcopy(self.kps1[self.matches[i].queryIdx]))
-                des1.append(cp.deepcopy(self.des1[self.matches[i].queryIdx]))
+                # why were we copying?
+                kps1.append(self.kps1[self.matches[i].queryIdx])
+                des1.append(self.des1[self.matches[i].queryIdx])
 
-                kps2.append(cp.deepcopy(self.kps2[self.matches[i].trainIdx]))
-                des2.append(cp.deepcopy(self.des2[self.matches[i].trainIdx]))
+                kps2.append(self.kps2[self.matches[i].trainIdx])
+                des2.append(self.des2[self.matches[i].trainIdx])
 
-                match = cp.deepcopy(self.matches[i])
+                match = self.matches[i]  # ye I know, keystrokes
                 match.queryIdx, match.trainIdx = j, j
                 matches.append(match)
                 j += 1
