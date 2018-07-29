@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 
 import geometry as gmt
 
-ARR_LEN = 10
+ECHO_LEN = 400
 TABLE_NAME = f'stats_{strftime("%y%m%d_%H%M%S")}'
 
 
@@ -61,18 +61,19 @@ def main():
 
                     matches_origin, kps1_origin, kps2_origin, _ = get_stats(method, img1, img2)
 
-                    # write_matches_img(f'results/matches/{case}_{name}_pair{pair}_{step_fn.__name__}'
-                    #                   f'_iter{iteration}_original_matches.png',
-                    #                   img1, kps1_origin, img2, kps2_origin, matches_origin[:ARR_LEN])
+                    matches, kps1, kps2, _ = process_by_std(case, name, pair_number, 1,
+                                                            matches_origin, kps1_origin, kps2_origin, dist_step, 1)
+                    matches, kps1, kps2, _ = process_by_std(case, name, pair_number, 2,
+                                                            matches, kps1, kps2, dist_step, 1)
 
-                    # matches, kps1, kps2 = process_step(case, name, pair, 1,
-                    #                                    matches_origin, kps1_origin, kps2_origin, dist_step, 1)
-                    # process_step(case, name, pair, 2, matches, kps1, kps2, dist_step, 1)
+                    # write_matches_img(f'results/matches/matches_{case}_{name}_pair{pair_number}_iter2'
+                    #                   f'_{dist_step.__name__}_processed.png',
+                    #                   img1, kps1, img2, kps2, matches[begin_indx:begin_indx + ECHO_LEN])
 
-                    matches, kps1, kps2 = process_by_med(case, name, pair_number, 1,
-                                                         matches_origin, kps1_origin, kps2_origin, dist_step)
-                    matches, kps1, kps2 = process_by_med(case, name, pair_number, 2, matches, kps1, kps2, dist_step)
-                    process_by_std(case, name, pair_number, 3, matches, kps1, kps2, dist_step, 1)
+                    # matches, kps1, kps2 = process_by_med(case, name, pair_number, 1,
+                    #                                      matches_origin, kps1_origin, kps2_origin, dist_step)
+                    # matches, kps1, kps2 = process_by_med(case, name, pair_number, 2, matches, kps1, kps2, dist_step)
+                    # process_by_med(case, name, pair_number, 3, matches, kps1, kps2, dist_step)
 
             except IOError as ioerr:
                 print(ioerr)
@@ -84,12 +85,12 @@ def main():
     print(f'\nTest executed in {execute_time_f - execute_time_i} seconds')
 
 
-def process_by_med(case, name, pair, iteration, matches_origin, kps1_origin, kps2_origin, step_fn):
+def process_by_med(case, name, pair, iteration, matches_origin, kps1_origin, kps2_origin, step_fn, sort=False):
     path_folder = 'results/matches'
     filename = f'{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}_med'
     print(f'\nremoving outliers with {step_fn.__name__} over boxes, iteration {iteration}')
 
-    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches_origin, kps1_origin, kps2_origin)
+    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, _ = step_fn(matches_origin, kps1_origin, kps2_origin)
     kps_feat_min = np.min(kps_feat_diff)
     kps_feat_max = np.max(kps_feat_diff)
     kps_feat_qs = np.percentile(kps_feat_diff, [25, 50, 70])
@@ -115,7 +116,7 @@ def process_by_med(case, name, pair, iteration, matches_origin, kps1_origin, kps
         matches_origin, kps1_origin, kps2_origin, kps_feat_diff,
         kps_feat_qs[0], kps_feat_qs[2])
 
-    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches, kps1, kps2)
+    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, _ = step_fn(matches, kps1, kps2)
     kps_feat_min = np.min(kps_feat_diff)
     kps_feat_max = np.max(kps_feat_diff)
     kps_feat_qs = np.percentile(kps_feat_diff, [25, 50, 70])
@@ -141,12 +142,12 @@ def process_by_med(case, name, pair, iteration, matches_origin, kps1_origin, kps
 
 
 def process_by_std(case, name, pair, iteration, matches_origin, kps1_origin, kps2_origin, step_fn, std_amount,
-                   use_mean_denominator=False):
+                   use_mean_denominator=False, sort=False):
     path_folder = 'results/matches'
     filename = f'{case}_{name}_pair{pair}_iter{iteration}_{step_fn.__name__}_std'
     print(f'\nremoving outliers with {step_fn.__name__} over {std_amount} std, iteration {iteration}')
 
-    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches_origin, kps1_origin, kps2_origin)
+    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, _ = step_fn(matches_origin, kps1_origin, kps2_origin)
     kps_feat_min = np.min(kps_feat_diff)
     kps_feat_max = np.max(kps_feat_diff)
 
@@ -176,20 +177,20 @@ def process_by_std(case, name, pair, iteration, matches_origin, kps1_origin, kps
                        kps_feat_diff_std, len(matches_origin), None, int(kps_feat_diff_beyond_std),
                        float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
-    write_boxplot(f'{path_folder}/box_{filename}_original.png',
-                  kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
-
-    write_histogram(f'{path_folder}/hist_{filename}_original.png',
-                    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
-                    xlabel=f'{step_fn.__name__}', ylabel='Frequency',
-                    xrange=(0, 3) if step_fn == dist_step else (0, 30))
+    # write_boxplot(f'{path_folder}/box_{filename}_original.png',
+    #               kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
+    #
+    # write_histogram(f'{path_folder}/hist_{filename}_original.png',
+    #                 kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
+    #                 xlabel=f'{step_fn.__name__}', ylabel='Frequency',
+    #                 xrange=(0, 3) if step_fn == dist_step else (0, 30))
 
     matches, kps1, kps2, removed_matches = remove_fake_matches(
         matches_origin, kps1_origin, kps2_origin, kps_feat_diff,
         kps_feat_diff_mean - (kps_feat_diff_std * std_amount),
         kps_feat_diff_mean + (kps_feat_diff_std * std_amount))
 
-    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std = step_fn(matches, kps1, kps2)
+    kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, sort_indxs = step_fn(matches, kps1, kps2)
     kps_feat_min = np.min(kps_feat_diff)
     kps_feat_max = np.max(kps_feat_diff)
 
@@ -218,14 +219,25 @@ def process_by_std(case, name, pair, iteration, matches_origin, kps1_origin, kps
                        kps_feat_diff_std, len(matches_origin), len(matches), int(kps_feat_diff_beyond_std),
                        float(amount_below_5), float(amount_below_10), float(amount_below_20), ratio5, ratio10, ratio20))
 
-    write_boxplot(f'{path_folder}/box_{filename}_processed.png',
-                  kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
+    # write_boxplot(f'{path_folder}/box_{filename}_processed.png',
+    #               kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std)
+    #
+    # write_histogram(f'{path_folder}/hist_{filename}_processed.png',
+    #                 kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
+    #                 xlabel=f'{step_fn.__name__}', ylabel='Frequency',
+    #                 xrange=(0, 3) if step_fn == dist_step else (0, 30))
 
-    write_histogram(f'{path_folder}/hist_{filename}_processed.png',
-        kps_feat_diff, kps_feat_diff_mean, kps_feat_diff_std, kps_feat_min, kps_feat_max,
-        xlabel=f'{step_fn.__name__}', ylabel='Frequency', xrange=(0, 3) if step_fn == dist_step else (0, 30))
+    # if sort:
+    #     # indxs = np.argsort(kps_feat_diff)
+    #     matches = matches[sort_indxs]
+    #     kps1 = kps1[sort_indxs]
+    #     kps2 = kps2[sort_indxs]
+    #
+    begin_indx = 0
+    # # while kps_feat_diff[sort_indxs[begin_indx]] < 0.8:
+    # #     begin_indx += 1
 
-    return matches, kps1, kps2
+    return matches, kps1, kps2, begin_indx
 
 
 def amount_stats_within(stats, thresh=0.05, denominator=None):
@@ -341,14 +353,18 @@ def dist_step(matches, kps1, kps2):
     diff, diff_mean, diff_std = process_kps_feat(
         matches, dist1, dist2, op.truediv)
 
-    i = 0
-    for match in np.random.choice(matches, 10):
-        q = match.queryIdx
-        t = match.trainIdx
-        print(f'{i}th match between {kps1[q].pt} and {kps2[t].pt}: {dist1[q]} / {dist2[t]} = {diff[i]}')
-        i += 1
+    sort_indxs = None
+    # sort_indxs = np.argsort(diff)
+    # sort_indxs = sort_indxs[::-1]
+    # begin_indx = 0
+    # # while diff[sort_indxs[begin_indx]] < 0.8:
+    # #     begin_indx += 1
+    # for i in sort_indxs[begin_indx:begin_indx + ECHO_LEN]:
+    #     q = matches[i].queryIdx
+    #     t = matches[i].trainIdx
+    #     print(f'match between {kps1[q].pt} and {kps2[t].pt}: {dist1[q]} / {dist2[t]} = {diff[i]}')
 
-    return diff, diff_mean, diff_std
+    return diff, diff_mean, diff_std, sort_indxs
 
 
 def angle_step(matches, kps1, kps2):
