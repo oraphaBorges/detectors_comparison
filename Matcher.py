@@ -52,8 +52,6 @@ class Matcher:
         """ Sorts self.matches according to their distance attribute
         or base array parameter.
 
-        Also sorts self.kps_diff if it exists.
-
         :param base_array: array-like object with the same length
         as self.matches with scalar values to compute an ordering
         :return: the indexes that have been used to sort the matches
