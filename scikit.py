@@ -41,12 +41,16 @@ def main():
 
     hypers = {
         RandomForestClassifier.__name__: {
-            'n_estimators': [3, 27, 81],
+            'n_estimators': [2, 4, 8, 16, 32, 64, 128],
             'criterion': ['gini', 'entropy'],
             'max_features': ['sqrt', 'log2', None]
         },
         MLPClassifier.__name__: {
-            'hidden_layer_sizes': [(2,), (64,), (2, 4, 8, 4, 2), (2, 32, 2)],
+            'hidden_layer_sizes': [(2,), (8,), (64,), (256,),
+                                   (2, 2), (4, 4), (8, 8), (64, 64),
+                                   (256, 256),
+                                   (2, 4, 2), (64, 256, 64), (256, 32, 2),
+                                   (2, 4, 8, 4, 2), (2, 32, 128, 32, 2)],
             'activation': ['logistic', 'tanh', 'relu'],
             'solver': ['lbfgs', 'sgd', 'adam'],
             'learning_rate_init': [0.5, 0.1, 0.01, 0.001]
@@ -65,8 +69,7 @@ def main():
 
     for name, alg in algorithms.items():
         print('\nRunning classification with {}...'.format(name))
-        gs = GridSearchCV(alg, hypers[name], cv=5)
-        # gs = GridSearchCV(alg, hypers[name], cv=5, scoring='f1_macro')
+        gs = GridSearchCV(alg, hypers[name], cv=5, scoring='f1')
         gs.fit(X_train, y_train)
         print('Best parameters for {}:'.format(name), gs.best_params_)
         print('Classification report for {} over test dataset:'.format(name))
