@@ -25,17 +25,17 @@ def main():
     surf = cv2.xfeatures2d.SURF_create()
 
     methods = {
-        'ORB': orb,
-        # 'AKAZE': akaze,
+        # 'ORB': orb,
+        'AKAZE': akaze,
         # 'BRISK': brisk,
         # 'SIFT': sift,
         # 'SURF': surf
     }
 
     cases = [
-        # 'Different Object',
+        'Different Object',
         'Same Object, Same Scale',
-        # 'Same Object, Different Scale'
+        'Same Object, Different Scale'
     ]
 
     for case in cases:
@@ -65,7 +65,7 @@ def main():
                     matcher.match()
 
                     process_by_fn(matcher, case, pair_number, 1, dist_std)
-                    process_by_fn(matcher, case, pair_number, 2, dist_std)
+                    # process_by_fn(matcher, case, pair_number, 2, dist_std)
 
             except IOError as ioerr:
                 print(ioerr)
@@ -80,6 +80,8 @@ def main():
 def process_by_fn(matcher, case_id, pair_id, exec_id, fn, *fn_args,
                   sort=False, folder_path='results/matches'):
     """
+
+    *_id params are used for naming saved pictures.
 
     fn must return a 7-elements-long tuple containing:
     - the arguments of Matcher.filter_by in the default order
@@ -118,38 +120,39 @@ def process_by_fn(matcher, case_id, pair_id, exec_id, fn, *fn_args,
 
     write_histogram(f'{folder_path}/hist_{filename}_original.png',
                     measure, meas_mean, meas_std, meas_min, meas_max,
-                    xlabel=f'{fn.__name__}', ylabel='Frequency')
+                    xlabel=f'{fn.__name__}', ylabel='Frequency',
+                    xrange=(0, 700_000))
 
-    matcher.backup()
-    removed_matches = matcher.filter_by(measure, lo_bound, up_bound)
-
-    measure, lo_bound, up_bound, meas_min, meas_max, meas_mean, meas_std = fn(
-        matcher, *fn_args)
-
-    print(f'removed {len(removed_matches)} matches'
-          f' ({len(removed_matches) / len(matcher.snapshot["matches"])})')
-    print(f'matches after removal: {len(matcher.matches)}'
-          f' ({len(matcher.matches) / len(matcher.snapshot["matches"])})')
-    print(f'min after removal: {meas_min}')
-    print(f'max after removal: {meas_max}')
-    print(f'mean after removal: {meas_mean}')
-    print(f'std after removal: {meas_std}')
-
-    insert_and_commit((case_id, matcher.name, pair_id, exec_id, fn.__name__,
-                       meas_min, meas_max, meas_mean, meas_std,
-                       len(matcher.snapshot['matches']), len(matcher.matches)))
-
-    write_boxplot(f'{folder_path}/box_{filename}_processed.png',
-                  measure, meas_mean, meas_std)
-
-    write_histogram(f'{folder_path}/hist_{filename}_processed.png',
-                    measure, meas_mean, meas_std, meas_min, meas_max,
-                    xlabel=f'{fn.__name__}', ylabel='Frequency')
-
-    if sort:
-        matcher.sort(measure)
-
-    return removed_matches
+    # matcher.backup()
+    # removed_matches = matcher.filter_by(measure, lo_bound, up_bound)
+    #
+    # measure, lo_bound, up_bound, meas_min, meas_max, meas_mean, meas_std = fn(
+    #     matcher, *fn_args)
+    #
+    # print(f'removed {len(removed_matches)} matches'
+    #       f' ({len(removed_matches) / len(matcher.snapshot["matches"])})')
+    # print(f'matches after removal: {len(matcher.matches)}'
+    #       f' ({len(matcher.matches) / len(matcher.snapshot["matches"])})')
+    # print(f'min after removal: {meas_min}')
+    # print(f'max after removal: {meas_max}')
+    # print(f'mean after removal: {meas_mean}')
+    # print(f'std after removal: {meas_std}')
+    #
+    # insert_and_commit((case_id, matcher.name, pair_id, exec_id, fn.__name__,
+    #                    meas_min, meas_max, meas_mean, meas_std,
+    #                    len(matcher.snapshot['matches']), len(matcher.matches)))
+    #
+    # write_boxplot(f'{folder_path}/box_{filename}_processed.png',
+    #               measure, meas_mean, meas_std)
+    #
+    # write_histogram(f'{folder_path}/hist_{filename}_processed.png',
+    #                 measure, meas_mean, meas_std, meas_min, meas_max,
+    #                 xlabel=f'{fn.__name__}', ylabel='Frequency')
+    #
+    # if sort:
+    #     matcher.sort(measure)
+    #
+    # return removed_matches
 
 
 def amount_stats_within(stats, thresh=0.05, denominator=None):
@@ -178,6 +181,7 @@ def write_boxplot(path, xs, mean=None, std=None, usermedians=None, title=None):
     plt.cla()
     plt.boxplot(xs, usermedians=usermedians)
     plt.title(title if title is not None else '')
+    plt.ylim((0, 700_000))
     plt.grid(True)
 
     if mean is not None and std is not None:
