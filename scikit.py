@@ -2,7 +2,7 @@ import sqlite3
 
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
@@ -73,7 +73,9 @@ def main():
         gs.fit(X_train, y_train)
         print('Best parameters for {}:'.format(name), gs.best_params_)
         print('Classification report for {} over test dataset:'.format(name))
-        print(classification_report(gs.predict(X_test), y_test))
+        y_hat = gs.predict(X_test)
+        print(classification_report(y_test, y_hat))
+        print('accuracy:', accuracy_score(y_test, y_hat))
 
 
 if __name__ == '__main__':
