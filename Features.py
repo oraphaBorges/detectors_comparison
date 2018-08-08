@@ -18,11 +18,11 @@ TABLE_NAME = f'stats_{strftime("%y%m%d_%H%M%S")}'
 def main():
     execute_time_i = time()
 
-    orb = cv2.ORB.create(nfeatures=5000)
+    # orb = cv2.ORB.create(nfeatures=5000)
     akaze = cv2.AKAZE.create()
-    brisk = cv2.BRISK.create()
-    sift = cv2.xfeatures2d.SIFT_create()
-    surf = cv2.xfeatures2d.SURF_create()
+    # brisk = cv2.BRISK.create()
+    # sift = cv2.xfeatures2d.SIFT_create()
+    # surf = cv2.xfeatures2d.SURF_create()
 
     methods = {
         # 'ORB': orb,
