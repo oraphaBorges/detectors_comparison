@@ -9,20 +9,29 @@ class Matcher:
     """ Wrapper class around OpenCV's object detection,
     description and matching. """
 
-    def __init__(self, alg, img1, img2, name=None, norm=None):
+    def __init__(self, alg, img1, img2, name=None, norm_type=None):
         """
         :param alg: feature detector and descriptor from OpenCV Features2D
         :param img1: image 1
         :param img2: image 2
         :param name: alg name
-        :param norm: descriptor matcher type (int/enum from cv2)
+        :param norm_type: cv2.DESCRIPTOR_MATCHER_* indicating norm type.
+        If None, tries to use default from alg
         """
         self.alg = alg
         self.img1 = img1
         self.img2 = img2
         self.name = name if name is not None else alg.getDefaultName()
-        self.matcher = cv2.DescriptorMatcher.create(
-            norm if norm is not None else alg.defaultNorm())
+        if norm_type is None:
+            if alg.defaultNorm() == cv2.NORM_HAMMING:
+                norm_type = cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING
+            elif alg.defaultNorm() == cv2.NORM_L2:
+                norm_type = cv2.DESCRIPTOR_MATCHER_BRUTEFORCE
+            else:
+                raise ValueError(f'Unsupported default norm {alg.defaultNorm()}'
+                                 f' from {name}')
+        print(alg.defaultNorm(), cv2.NORM_HAMMING, cv2.NORM_L2)
+        self.matcher = cv2.DescriptorMatcher_create(norm_type)
         self.time = None
         self.matches = None
         self.snapshot = None
