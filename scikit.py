@@ -1,4 +1,6 @@
+import argparse
 import sqlite3
+import sys
 
 import pandas as pd
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as QDA
@@ -9,7 +11,7 @@ from sklearn.gaussian_process.kernels import \
     RationalQuadratic, ExpSineSquared, DotProduct
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.naive_bayes import GaussianNB
+from sklearn.naive_bayes import BernoulliNB, GaussianNB, MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC
@@ -28,30 +30,41 @@ def categorize_binary(df):
     df.replace(to_replace=r'^Same Object.+', value=1, inplace=True, regex=True)
 
 
-def main():
+def classify(dataset, test_size=0.3, should_categorize=False):
     df = pd.DataFrame(dataset)
 
-    categorize_binary(df)
-    # categorize(df)
+    if should_categorize:
+        categorize(df)
+    else:
+        categorize_binary(df)
 
     y = df.iloc[:, -1]
     X = df.iloc[:, 0:-1]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+    X_train, X_test, y_train, y_test = train_test_split(X, y,
+                                                        test_size=test_size)
 
     hypers = {
-        SVC.__name__: {
-            'C': [1, 0.025],
-            'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
-            'probability': [True, False],
-            'shrinking': [True, False]
+        AdaBoostClassifier.__name__: {
+            'algorithm': ['SAMME', 'SAMME.R']
         },
-        GaussianNB.__name__: {
+        BernoulliNB.__name__: {
+            'fit_prior': [True, False]
         },
         DecisionTreeClassifier.__name__: {
             'criterion': ['gini', 'entropy'],
             'splitter': ['best', 'random'],
             'max_features': ['sqrt', 'log2', None]
+        },
+        GaussianNB.__name__: {
+        },
+        GaussianProcessClassifier.__name__: {
+            # only kernels
+        },
+        KNeighborsClassifier.__name__: {
+            'weights': ['uniform', 'distance'],
+            'algorithm': ['ball_tree', 'kd_tree'],
+            'metric': ['euclidean', 'manhattan', 'chebyshev']
         },
         MLPClassifier.__name__: {
             'hidden_layer_sizes': [(2,), (8,), (64,), (256,),
@@ -63,13 +76,8 @@ def main():
             'solver': ['lbfgs', 'sgd', 'adam'],
             'learning_rate_init': [0.5, 0.1, 0.01, 0.001]
         },
-        KNeighborsClassifier.__name__: {
-            'weights': ['uniform', 'distance'],
-            'algorithm': ['ball_tree', 'kd_tree'],
-            'metric': ['euclidean', 'manhattan', 'chebyshev']
-        },
-        GaussianProcessClassifier.__name__: {
-            # only kernels
+        MultinomialNB.__name__: {
+            'fit_prior': [True, False]
         },
         QDA.__name__: {
         },
@@ -78,42 +86,48 @@ def main():
             'criterion': ['gini', 'entropy'],
             'max_features': ['sqrt', 'log2', None]
         },
-        AdaBoostClassifier.__name__: {
-            'algorithm': ['SAMME', 'SAMME.R']
+        SVC.__name__: {
+            'C': [1, 0.025],
+            'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
+            'probability': [True, False],
+            'shrinking': [True, False]
         }
     }
 
     """
-    Intuitively, precision is the ability of the classifier not to
+    "Intuitively, precision is the ability of the classifier not to
     label as positive a sample that is negative, and recall is the
-    ability of the classifier to find all the positive samples.
+    ability of the classifier to find all the positive samples."
+        scikit-learn docs.
     """
     scores = ['accuracy', 'precision', 'recall', 'f1']
 
     for score in scores:
         print('\n--------------------------------------------------')
-        print('Searching for best hyper-params according to {}'.format(score))
+        print(f'Searching for best hyper-params according to {score}')
 
         algorithms = {
-            SVC.__name__: SVC(),
-            GaussianNB.__name__: GaussianNB(),
+            AdaBoostClassifier.__name__: AdaBoostClassifier(),
+            BernoulliNB.__name__: BernoulliNB(),
             DecisionTreeClassifier.__name__: DecisionTreeClassifier(),
-            MLPClassifier.__name__: MLPClassifier(max_iter=1000),
-            KNeighborsClassifier.__name__: KNeighborsClassifier(),
+            GaussianNB.__name__: GaussianNB(),
             GaussianProcessClassifier.__name__: GaussianProcessClassifier(),
+            KNeighborsClassifier.__name__: KNeighborsClassifier(),
+            MLPClassifier.__name__: MLPClassifier(max_iter=1000),
+            MultinomialNB.__name__: MultinomialNB(),
             QDA.__name__: QDA(),
             RandomForestClassifier.__name__: RandomForestClassifier(),
-            AdaBoostClassifier.__name__: AdaBoostClassifier()
+            SVC.__name__: SVC(),
         }
 
-        # a kernel’s hyperparameters are optimized
-        # during fitting, so rebuild them here
+        # kernels hyperparameters are optimized
+        # during fitting, so we reset them here
         hypers[GaussianProcessClassifier.__name__]['kernel'] = \
             [ConstantKernel(), WhiteKernel(), RBF(), Matern(),
              RationalQuadratic(), ExpSineSquared(), DotProduct()]
 
         for name, alg in algorithms.items():
-            print('\n> {}'.format(name))
+            print(f'\n> {name}')
             gs = GridSearchCV(alg, hypers[name], cv=5, scoring=score)
             gs.fit(X_train, y_train)
             y_hat = gs.predict(X_test)
@@ -123,18 +137,20 @@ def main():
             print(classification_report(y_test, y_hat))
 
 
-if __name__ == '__main__':
-    with sqlite3.connect('db.sqlite3') as conn:
+def main():
+    with sqlite3.connect(args.database) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-        SELECT name FROM sqlite_master WHERE type='table' ORDER BY name DESC
-        """)
-        last_table = cursor.fetchone()
-        if last_table is not None:
-            last_table = last_table[0]
-        # tables_cursor.close()
-        cursor.execute(
-            f"""
+        table_name = args.table
+        if table_name is None:
+            cursor.execute("""
+            SELECT name FROM sqlite_master WHERE type='table' ORDER BY name DESC
+            """)
+            table_name = cursor.fetchone()
+            if table_name is None:
+                sys.exit(
+                    f'Could not find any tables in database {args.database}')
+            table_name = table_name[0]
+        query = f"""
             select
                 kps_feat_min,
                 kps_feat_max, 
@@ -143,11 +159,33 @@ if __name__ == '__main__':
                 matches_origin,
                 kase 
             from
-                {last_table}
-            --where
-            --    iteration = 2
-            --    AND matches is not null
-            """)
+                {table_name} -- yep, SQL injection issue here \o/
+            where
+                name = ?
+            """
+        cursor.execute(query, (args.algorithm,))
         dataset = cursor.fetchall()
-        print(f'{len(dataset)}-sized dataset from table {last_table}')
-        main()
+        print(f'{len(dataset)}-sized dataset from table {table_name}')
+        classify(dataset, test_size=args.test_size,
+                 should_categorize=args.categorize)
+
+
+if __name__ == '__main__':
+    argp = argparse.ArgumentParser()
+    argp.add_argument('algorithm',
+                      type=str,
+                      help='one of: AKAZE, BRISK, ORB, SIFT, SURF'
+                           ' (case-sensitive)')
+    argp.add_argument('-d', '--database', type=str, default='db.sqlite3',
+                      help='SQLite3 database path. Default = %(default)s')
+    argp.add_argument('-t', '--table', type=str, default=None,
+                      help='SQLite3 database table. Default = last one in'
+                           ' reverse lexicographic order of the names'
+                           ' (good for table names with timestamps)')
+    argp.add_argument('-s', '--test-size', type=float, default=0.3,
+                      help='0.0 < test size < 1.0. Default = %(default)s')
+    argp.add_argument('-c', '--categorize', action='store_true',
+                      help='categorize labels instead of \'binarize\'')
+    args = argp.parse_args()
+
+    main()
