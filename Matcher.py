@@ -9,7 +9,8 @@ class Matcher:
     """ Wrapper class around OpenCV's object detection,
     description and matching. """
 
-    def __init__(self, alg, img1, img2, name=None, norm_type=None):
+    def __init__(self, alg, img1, img2, name=None, norm_type=None,
+                 cross_check=True):
         """
         :param alg: feature detector and descriptor from OpenCV Features2D
         :param img1: image 1
@@ -17,21 +18,17 @@ class Matcher:
         :param name: alg name
         :param norm_type: cv2.DESCRIPTOR_MATCHER_* indicating norm type.
         If None, tries to use default from alg
+        :param cross_check: crossCheck parameter of cv2.BFMatcher_create
         """
         self.alg = alg
         self.img1 = img1
         self.img2 = img2
         self.name = name if name is not None else alg.getDefaultName()
-        if norm_type is None:
-            if alg.defaultNorm() == cv2.NORM_HAMMING:
-                norm_type = cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING
-            elif alg.defaultNorm() == cv2.NORM_L2:
-                norm_type = cv2.DESCRIPTOR_MATCHER_BRUTEFORCE
-            else:
-                raise ValueError(f'Unsupported default norm {alg.defaultNorm()}'
-                                 f' from {name}')
-        print(alg.defaultNorm(), cv2.NORM_HAMMING, cv2.NORM_L2)
-        self.matcher = cv2.DescriptorMatcher_create(norm_type)
+        if norm_type is not None:
+            self.matcher = cv2.DescriptorMatcher_create(norm_type)
+        else:
+            self.matcher = cv2.BFMatcher_create(alg.defaultNorm(),
+                                                crossCheck=cross_check)
         self.time = None
         self.matches = None
         self.snapshot = None
