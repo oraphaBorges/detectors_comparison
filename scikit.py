@@ -165,7 +165,8 @@ def main():
             """
         cursor.execute(query, (args.algorithm,))
         dataset = cursor.fetchall()
-        print(f'{len(dataset)}-sized dataset from table {table_name}')
+        print('Arguments:', args)
+        print(f'{len(dataset)}-sized dataset')
         classify(dataset, test_size=args.test_size,
                  should_categorize=args.categorize)
 
