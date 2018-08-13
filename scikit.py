@@ -9,12 +9,12 @@ from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import \
     ConstantKernel, WhiteKernel, RBF, Matern, \
     RationalQuadratic, ExpSineSquared, DotProduct
+from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.naive_bayes import BernoulliNB, GaussianNB, MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
 
@@ -67,11 +67,10 @@ def classify(dataset, test_size=0.3, should_categorize=False):
             'metric': ['euclidean', 'manhattan', 'chebyshev']
         },
         MLPClassifier.__name__: {
-            'hidden_layer_sizes': [(2,), (8,), (64,), (256,),
-                                   (2, 2), (4, 4), (8, 8), (64, 64),
-                                   (256, 256),
-                                   (2, 4, 2), (64, 256, 64), (256, 32, 2),
-                                   (2, 4, 8, 4, 2), (2, 32, 128, 32, 2)],
+            'hidden_layer_sizes': [(2,), (64,),
+                                   (2, 2), (4, 4),
+                                   (2, 4, 2), (64, 8, 2),
+                                   (2, 4, 8, 4, 2)],
             'activation': ['logistic', 'tanh', 'relu'],
             'solver': ['lbfgs', 'sgd', 'adam'],
             'learning_rate_init': [0.5, 0.1, 0.01, 0.001]
@@ -82,15 +81,16 @@ def classify(dataset, test_size=0.3, should_categorize=False):
         QDA.__name__: {
         },
         RandomForestClassifier.__name__: {
-            'n_estimators': [2, 4, 8, 16, 32, 64, 128],
+            'n_estimators': [2, 4, 8, 16, 32, 64],
             'criterion': ['gini', 'entropy'],
             'max_features': ['sqrt', 'log2', None]
         },
-        SVC.__name__: {
-            'C': [1, 0.025],
-            'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
-            'probability': [True, False],
-            'shrinking': [True, False]
+        SGDClassifier.__name__: {
+            'loss': ['hinge', 'log', 'modified_huber',
+                     'squared_hinge', 'perceptron'],
+            'penalty': ['none', 'l1', 'l2', 'elasticnet'],
+            'alpha': [0.1, 0.01, 0.001, 0.0001],
+            'fit_intercept': [True, False]
         }
     }
 
@@ -117,7 +117,7 @@ def classify(dataset, test_size=0.3, should_categorize=False):
             MultinomialNB.__name__: MultinomialNB(),
             QDA.__name__: QDA(),
             RandomForestClassifier.__name__: RandomForestClassifier(),
-            SVC.__name__: SVC(),
+            SGDClassifier.__name__: SGDClassifier()
         }
 
         # kernels hyperparameters are optimized
